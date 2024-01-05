@@ -33,7 +33,7 @@ from mindspore.ops.primitive import prim_attr_register
 from ..auto_generate import (CeLU, Flatten, LogSoftmax, ReLU, ReLU6,
                              Elu, Sigmoid, Softmax, HSwish, HSigmoid, AvgPool, BiasAdd,
                              NLLLoss, OneHot, GeLU, FastGeLU, PReLU,
-                             GridSampler3D, GridSampler2D, LayerNorm, HShrink)
+                             GridSampler3D, GridSampler2D, LayerNorm, HShrink, ApplyRotaryPosEmb)
 from .manually_defined import BatchNorm
 
 
@@ -1436,6 +1436,7 @@ class MaxPoolV1(Primitive):
 
         self.add_prim_attr("kernel_size", kernel_size_adapted)
         self.add_prim_attr("strides", strides_adapted)
+
 
 class MaxPool3D(Primitive):
     r"""
@@ -7884,8 +7885,10 @@ class Dilation2D(Primitive):
         self.pad_mode = validator.check_string(pad_mode, ['VALID', 'SAME', 'valid', 'same'], 'pad_mode', self.name)
         self.add_prim_attr('pad_mode', self.pad_mode.upper())
         self.stride = _check_format_stride_or_dilation("stride", stride, self.name, self.data_format)
+
         def is_in_range(x):
             return 1 <= x <= 255
+
         if not is_in_range(self.stride[2]) or not is_in_range(self.stride[3]):
             raise ValueError(f'For Dilation2D, size of stride is not supported, '
                              f'stride should be in the range of [1, 255], '
@@ -10137,6 +10140,7 @@ class PromptFlashAttention(Primitive):
                                         "quant_scale2", "quant_offset2"],
                                 outputs=["attention_out"])
 
+
 class IncreFlashAttention(Primitive):
     r"""
     The interface for fully inference.
@@ -10268,3 +10272,96 @@ class FlashAttentionScore(Primitive):
         self.init_prim_io_names(
             inputs=['query', 'key', 'value', 'attn_mask', 'drop_mask', 'real_shift', 'padding_mask', 'prefix'],
             outputs=['attention_out', 'softmax_max', 'softmax_sum'])
+
+
+class PagedAttention(Primitive):
+    r"""
+    .. warning::
+        This is an experimental API that is subject to change or deletion.
+    """
+
+    @prim_attr_register
+    def __init__(self, head_num, scale_value=1.0, kv_head_num=0):
+        """Initialize PagedAttention"""
+        validator.check_value_type('head_num', head_num, [int], self.name)
+        validator.check_value_type('scale_value', scale_value, [float], self.name)  # scale after qkbmm
+        validator.check_value_type('kv_head_num', kv_head_num, [int], self.name)  # for MQA
+        self.init_prim_io_names(
+            inputs=['query', 'key_cache', 'value_cache', 'block_tables', 'context_lens'],
+            outputs=['attention_out'])
+
+
+class PagedAttentionMask(Primitive):
+    r"""
+    .. warning::
+        This is an experimental API that is subject to change or deletion.
+    """
+
+    @prim_attr_register
+    def __init__(self, head_num, scale_value=1.0, kv_head_num=0):
+        """Initialize PagedAttentionMask"""
+        validator.check_value_type('head_num', head_num, [int], self.name)
+        validator.check_value_type('scale_value', scale_value, [float], self.name)  # scale after qkbmm
+        validator.check_value_type('kv_head_num', kv_head_num, [int], self.name)  # for MQA
+        self.init_prim_io_names(
+            inputs=['query', 'key_cache', 'value_cache', 'block_tables', 'context_lens', 'alibi_mask'],
+            outputs=['attention_out'])
+
+
+class ReshapeAndCache(Primitive):
+    r"""
+    .. warning::
+        This is an experimental API that is subject to change or deletion.
+    """
+    __mindspore_signature__ = (
+        sig.make_sig('key', dtype=sig.sig_dtype.T),
+        sig.make_sig('value', dtype=sig.sig_dtype.T),
+        sig.make_sig('key_cache', sig.sig_rw.RW_WRITE, dtype=sig.sig_dtype.T),
+        sig.make_sig('value_cache', sig.sig_rw.RW_WRITE, dtype=sig.sig_dtype.T),
+        sig.make_sig('slot_mapping', dtype=sig.sig_dtype.T1),
+    )
+
+    @prim_attr_register
+    def __init__(self):
+        """Initialize ReshapeAndCache"""
+        self.init_prim_io_names(
+            inputs=['key', 'value', 'key_cache', 'value_cache', 'slot_mapping'],
+            outputs=['key_out'])
+        self.add_prim_attr('side_effect_mem', True)
+
+
+class RmsNorm(Primitive):
+    r"""
+    The RmsNorm operator is a normalization operation, and its formula is:
+
+    .. math::
+        y=\frac{x_i}{\sqrt{\frac{1}{n}}\sum_{i=1}^{n}{ x_i^2}+\varepsilon  }\gamma_i
+
+    .. warning::
+        This is an experimental API that is subject to change or deletion.
+
+    Args:
+        epsilon (float): prevent division by 0, default value is `1e-6`
+
+    Inputs:
+        - **input_x** (Tensor) - Input data of RmsNorm, support data type: float16, float32, bfloat16.
+        - **gamma** (Tensor) - Support data type: float16, float32, bfloat16.
+
+    Outputs:
+        - **y** (Tensor) - Has the same type and shape with `input_x`.
+        - **rstd** (Tensor) - Has the same type with `input_x`, used by gradient calculation.
+
+    Raises:
+        TypeError: If data type of `input_x` is not one of the following: float16, float32, bfloat16.
+        TypeError: If data type of `gamma` is not one of the following: float16, float32, bfloat16.
+        TypeError: If data type of "input_x" is not the same with the data type of "gamma"
+
+    Supported Platforms:
+        ``Ascend``
+    """
+
+    @prim_attr_register
+    def __init__(self, epsilon=1e-6):
+        """Initialize Dense."""
+        validator.check_value_type("epsilon", epsilon, [float], self.name)
+        self.init_prim_io_names(inputs=['x', 'gamma'], outputs=["y", "rstd"])

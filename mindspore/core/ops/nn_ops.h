@@ -95,6 +95,8 @@ GVAR_DEF(PrimitivePtr, kPrimSyncBatchNormGrad, std::make_shared<Primitive>("Sync
 GVAR_DEF(PrimitivePtr, kPrimBNTrainingReduce, std::make_shared<Primitive>("BNTrainingReduce"));
 GVAR_DEF(PrimitivePtr, kPrimBNTrainingReduceGrad, std::make_shared<Primitive>("BNTrainingReduceGrad"));
 GVAR_DEF(PrimitivePtr, kPrimFusedBatchNorm, std::make_shared<Primitive>("FusedBatchNorm"));
+GVAR_DEF(PrimitivePtr, kPrimRmsNorm, std::make_shared<Primitive>("RmsNorm"));
+GVAR_DEF(PrimitivePtr, kPrimRmsNormGrad, std::make_shared<Primitive>("RmsNormGrad"));
 
 GVAR_DEF(PrimitivePtr, kPrimWKV, std::make_shared<Primitive>("WKV"));
 GVAR_DEF(PrimitivePtr, kPrimWKVGrad, std::make_shared<Primitive>("WKVGrad"));
@@ -179,6 +181,9 @@ GVAR_DEF(PrimitivePtr, kPrimPromptFlashAttention, std::make_shared<Primitive>(kF
 GVAR_DEF(PrimitivePtr, kPrimIncreFlashAttention, std::make_shared<Primitive>(kFlashIncreFlashAttentionOpName));
 GVAR_DEF(PrimitivePtr, kPrimFlashAttentionScore, std::make_shared<Primitive>(kFlashAttentionScoreOpName));
 GVAR_DEF(PrimitivePtr, kPrimFlashAttentionScoreGrad, std::make_shared<Primitive>(kFlashAttentionScoreGradOpName));
+GVAR_DEF(PrimitivePtr, kPrimPagedAttention, std::make_shared<Primitive>(kPagedAttentionOpName));
+GVAR_DEF(PrimitivePtr, kPrimPagedAttentionMask, std::make_shared<Primitive>(kPagedAttentionMaskOpName));
+GVAR_DEF(PrimitivePtr, kPrimReshapeAndCache, std::make_shared<Primitive>(kReshapeAndCacheOpName));
 }  // namespace prim
 }  // namespace mindspore
 
