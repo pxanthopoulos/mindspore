@@ -60,6 +60,7 @@ class CommunicationGroup {
   uint32_t local_group_size() const;
   virtual void set_local_rank(uint32_t local_group_rank) { local_group_rank_ = local_group_rank; }
   virtual void set_local_size(uint32_t local_group_size) { local_group_size_ = local_group_size; }
+  virtual void *comm_ptr() const { return nullptr; }
 
   // Return group ranks info.
   const std::vector<uint32_t> &group_ranks() const;

@@ -78,6 +78,8 @@ void *StreamPy::stream() const {
   return device_ctx_->device_res_manager_->GetStream(stream_id_);
 }
 
+std::uintptr_t StreamPy::stream_ptr() const { return reinterpret_cast<std::uintptr_t>(stream()); }
+
 bool StreamPy::StreamEqual(const std::shared_ptr<StreamPy> other_stream) {
   MS_EXCEPTION_IF_NULL(other_stream);
 
@@ -126,7 +128,8 @@ void RegStream(py::module *m) {
     .def("__eq__", &StreamPy::StreamEqual)
     .def_property_readonly("id", &StreamPy::stream_id)
     .def_property_readonly("device_name", &StreamPy::device_name)
-    .def_property_readonly("device_id", &StreamPy::device_id);
+    .def_property_readonly("device_id", &StreamPy::device_id)
+    .def_property_readonly("npu_stream", &StreamPy::stream_ptr);
 
   (void)m->def("set_cur_stream", &mindspore::hal::SetCurStream, "Set current stream");
   (void)m->def("synchronize", &mindspore::hal::Synchronize, "Synchronize all stream");

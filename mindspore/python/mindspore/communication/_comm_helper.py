@@ -464,3 +464,11 @@ def _destroy_group_helper(group):
         hccl.create_group(group)
     else:
         CollectiveManager.get_instance().destroy_group(group)
+
+
+@check_parameter_available
+def _get_comm_ptr_helper(group):
+    if _hccl_test():
+        return
+    else:
+        return CollectiveManager.get_instance().get_comm_ptr(group)
