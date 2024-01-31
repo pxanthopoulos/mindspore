@@ -21,7 +21,7 @@ from mindspore.communication._comm_helper import Backend, _get_rank_helper, _get
     _get_world_rank_from_group_rank_helper, _get_group_rank_from_world_rank_helper, \
     _create_group_helper, _destroy_group_helper, HCCL_WORLD_COMM_GROUP, NCCL_WORLD_COMM_GROUP, \
     MCCL_WORLD_COMM_GROUP, DEVICE_TO_BACKEND, _get_local_rank_helper, _get_local_size_helper, GlobalComm, \
-    _check_mpi_envs, _set_elegant_exit_handle
+    _check_mpi_envs, _set_elegant_exit_handle, _get_comm_ptr_helper
 from mindspore._c_expression import init_hccl, finalize_hccl, init_cluster, MSContext, ms_ctx_param
 
 
@@ -670,3 +670,10 @@ def destroy_group(group):
         raise TypeError("For 'destroy_group', the argument 'group' must be type of string, "
                         "but got 'group' type : {}.".format(type(group)))
     _destroy_group_helper(group)
+
+def get_comm_ptr(group=GlobalComm.WORLD_COMM_GROUP):
+    if not isinstance(group, str):
+        raise TypeError("For 'get_comm_ptr', the argument 'group' must be type of string, "
+                        "but got 'group' type : {}.".format(type(group)))
+    return _get_comm_ptr_helper(group)
+

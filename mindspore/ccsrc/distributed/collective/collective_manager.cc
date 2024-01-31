@@ -347,6 +347,14 @@ std::vector<uint32_t> CollectiveManager::GetGroupRanks(const std::string &group_
   return group->group_ranks();
 }
 
+std::uintptr_t CollectiveManager::GetCommPtr(const std::string &group_name) {
+  const auto &group = device_comm_lib_instance_->GetGroup(group_name);
+  if (group == nullptr) {
+    MS_LOG(EXCEPTION) << "Group " << group_name << " doesn't include this rank " << global_rank_id_ << " process.";
+  }
+  return reinterpret_cast<std::uintptr_t>(group->comm_ptr());
+}
+
 bool CollectiveManager::Finalize() {
   if (!inited_.load() || finalized_.load()) {
     return true;

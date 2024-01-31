@@ -38,6 +38,7 @@ class AscendCommunicationGroup : public CommunicationGroup {
   bool Finalize() override;
 
   void *GenerateRootInfo(size_t *root_info_size) override;
+  void *comm_ptr() const override { return hccl_communicator(); }
 
   // Return HCCL communicator because collective operations need it as a input.
   const HcclComm &hccl_communicator() const;

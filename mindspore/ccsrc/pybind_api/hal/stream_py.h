@@ -47,6 +47,7 @@ class StreamPy {
   size_t stream_id() const { return stream_id_; }
 
   void *stream() const;
+  std::uintptr_t stream_ptr() const;
 
   bool StreamEqual(const std::shared_ptr<StreamPy> other_stream);
 

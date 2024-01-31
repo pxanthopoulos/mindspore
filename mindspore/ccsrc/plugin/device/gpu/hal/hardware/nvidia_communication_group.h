@@ -38,6 +38,7 @@ class NvidiaCommunicationGroup : public CommunicationGroup {
   bool Finalize() override;
 
   void *GenerateRootInfo(size_t *root_info_size) override;
+  void *comm_ptr() const override { return nccl_communicator(); }
 
   // Return NCCL communicator because collective operations need it as a input.
   const ncclComm_t &nccl_communicator() const;
