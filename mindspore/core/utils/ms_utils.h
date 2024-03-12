@@ -99,6 +99,10 @@ static inline void SetOMPThreadNum() {
 
   std::string OMP_env = std::to_string(OMP_thread_num);
   (void)SetEnv("OMP_NUM_THREADS", OMP_env.c_str(), 0);
+  
+  (void)SetEnv("GRAPH_OP_RUN", "1", 0);
+  (void)SetEnv("MS_ENABLE_RUNTIME_PIPELINE", "1", 0);
+  (void)SetEnv("MS_ENABLE_SWITCH_INLINE", "1", 0);
 }
 
 static inline bool IsLittleByteOrder() {
