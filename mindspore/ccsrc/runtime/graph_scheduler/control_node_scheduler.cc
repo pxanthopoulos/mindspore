@@ -18,6 +18,7 @@
 #include "mindspore/core/ops/sequence_ops.h"
 #include "mindspore/core/ops/framework_ops.h"
 #include "runtime/graph_scheduler/control_node_parser.h"
+#include "runtime/graph_scheduler/inline_control_flow_scheduler.h"
 #include "runtime/graph_scheduler/scheduler_helper.h"
 
 namespace mindspore {
@@ -1393,7 +1394,8 @@ void ControlNodeScheduler::LinkControlArrowForKernelActor(ActorSet *const actor_
     MS_EXCEPTION_IF_NULL(no_input_kernel_actor);
     // Control arrow for custom actor will be linked in next step.
     if ((no_input_kernel_actor->input_datas_num_ != 0) || (no_input_kernel_actor->input_controls_num_ != 0) ||
-        no_input_kernel_actor->type() == KernelTransformType::kCustomActor) {
+        no_input_kernel_actor->type() == KernelTransformType::kCustomActor ||
+        IsInlineKernelActor(no_input_kernel_actor)) {
       continue;
     }
 
@@ -1433,7 +1435,8 @@ void ControlNodeScheduler::LinkControlArrowForKernelActor(ActorSet *const actor_
   // Link control arrows from no output kernel actor to the corresponding exit actor.
   for (auto &kernel_actor : actor_set->kernel_actors_) {
     MS_EXCEPTION_IF_NULL(kernel_actor);
-    if ((kernel_actor->output_data_arrows_.size() == 0) && (kernel_actor->output_control_arrows_.size() == 0)) {
+    if ((kernel_actor->output_data_arrows_.size() == 0) && (kernel_actor->output_control_arrows_.size() == 0) &&
+        (!IsInlineKernelActor(kernel_actor))) {
       auto kernel_graph = AnfAlgo::FetchKernelGraph(kernel_actor->kernel().get());
       MS_EXCEPTION_IF_NULL(kernel_graph);
       auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;

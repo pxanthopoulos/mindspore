@@ -551,7 +551,7 @@ void DoUnifyMindIRPass(const FuncGraphPtr &graph, const std::shared_ptr<opt::Gra
 bool IsEnableControlFlowInline(const FuncGraphPtr &graph) {
   auto context = MsContext::GetInstance();
   MS_EXCEPTION_IF_NULL(context);
-  if (!context->IsKByKExecutorMode()) {
+  if (!context->IsKByKExecutorMode() || graph->func_graphs_used_total().empty()) {
     return false;
   }
   MS_EXCEPTION_IF_NULL(graph);
