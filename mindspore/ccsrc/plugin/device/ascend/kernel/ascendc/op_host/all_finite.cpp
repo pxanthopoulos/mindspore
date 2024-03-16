@@ -24,9 +24,8 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
 
 namespace ge {
 static graphStatus InferShape(gert::InferShapeContext *context) {
-  const auto inputShape = context->GetInputShape(0);
   auto outputShape = context->GetOutputShape(0);
-  *outputShape = *inputShape;
+  *outputShape = {1};
   return GRAPH_SUCCESS;
 }
 }  // namespace ge
@@ -35,19 +34,14 @@ namespace ops {
 class AllFinite : public OpDef {
  public:
   explicit AllFinite(const char *name) : OpDef(name) {
-    this->Input("x")
+    this->Input("gradient")
       .ParamType(REQUIRED)
       .DataType({ge::DT_FLOAT16, ge::DT_FLOAT, ge::DT_INT32})
       .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
       .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
-    this->Input("y")
+    this->Output("is_finite")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT, ge::DT_INT32})
-      .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
-    this->Output("z")
-      .ParamType(REQUIRED)
-      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT, ge::DT_INT32})
+      .DataType({ge::DT_BOOL, ge::DT_BOOL, ge::DT_BOOL})
       .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
       .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
 

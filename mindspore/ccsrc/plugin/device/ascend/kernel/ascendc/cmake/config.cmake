@@ -1,7 +1,7 @@
 set(CMAKE_CXX_FLAGS_DEBUG "")
 set(CMAKE_CXX_FLAGS_RELEASE "")
 set(ENABLE_SOURCE_PACKAGE True)
-set(ENABLE_BINARY_PACKAGE False)
+set(ENABLE_BINARY_PACKAGE True)
 set(ASCEND_COMPUTE_UNIT "ascend910b;")
 set(vendor_name custom_ascendc_ops)
 set(ASCEND_PYTHON_EXECUTABLE python3)

@@ -163,7 +163,7 @@ function(add_bin_compile_target)
     add_custom_target(${BINCMP_TARGET}_${op_file}_${op_index} ALL
                       COMMAND export HI_PYTHON=${ASCEND_PYTHON_EXECUTABLE} &&
                       bash ${bin_script} ${BINCMP_OUT_DIR}/src/${op_type}.py ${BINCMP_OUT_DIR}/bin/${op_file} ${BINCMP_OPC_PATH} &&
-                      echo $(MAKE) WORKING_DIRECTORY ${BINCMP_OUT_DIR} || (exit 0)
+                      echo $(MAKE) WORKING_DIRECTORY ${BINCMP_OUT_DIR}
     )
     add_dependencies(${BINCMP_TARGET}_${op_file}_${op_index} ${BINCMP_TARGET} ${BINCMP_TARGET}_${op_file}_copy)
     add_dependencies(${BINCMP_TARGET}_gen_ops_config ${BINCMP_TARGET}_${op_file}_${op_index})
