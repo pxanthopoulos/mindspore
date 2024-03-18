@@ -292,10 +292,15 @@ std::string GetWorldGroup() {
 }
 
 std::string GetRankID() {
+  auto ms_context = MsContext::GetInstance();
+  MS_EXCEPTION_IF_NULL(ms_context);
   auto world_group = GetWorldGroup();
   uint32_t rank_id = 0;
-  if (!CommManager::GetInstance().GetRankID(world_group, &rank_id)) {
-    MS_LOG(INFO) << "Failed to get rank id.";
+  auto env_rank_id = common::GetEnv("RANK_ID");
+  if (ms_context->get_param<bool>(MS_CTX_ENABLE_HCCL) && !env_rank_id.empty()) {
+    if (!CommManager::GetInstance().GetRankID(world_group, &rank_id)) {
+      MS_LOG(INFO) << "Failed to get rank id.";
+    }
   }
   return std::to_string(rank_id);
 }
