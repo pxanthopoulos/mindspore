@@ -35,7 +35,7 @@ class GPUMemoryAllocator : public DynamicMemPoolBestFit {
   bool FreeDeviceMem(const DeviceMemPtr &addr) override;
   size_t free_mem_size() override;
   size_t AlignMemorySize(size_t size) const override;
-
+  std::string GetMemoryPoolType() const override { return "GPU"; }
   static GPUMemoryAllocator &GetInstance() {
     static GPUMemoryAllocator instance;
     return instance;

@@ -15,6 +15,7 @@
  */
 
 #include "include/backend/mem_reuse/mem_dynamic_allocator.h"
+#include "include/backend/mem_reuse/mem_tracker.h"
 #include <string>
 #include <algorithm>
 #include <numeric>
@@ -102,6 +103,7 @@ DeviceMemPtr DynamicMemPoolBestFit::AllocTensorMem(size_t size, bool from_persis
                     << ", device address addr: " << device_addr << ", size: " << size
                     << ", from persistent mem: " << from_persistent_mem << ", need recycle: " << need_recycle;
   }
+  device::tracker::CALL_MEMORY_TRACKER(AllocMemBlock, device_addr, size, GetMemoryPoolType(), stream_id);
 
   if (IsMemoryPoolRecycle()) {
     (void)mem_bufs_.insert(device_addr);
@@ -533,6 +535,7 @@ void DynamicMemPoolBestFit::CombineMemBuf(const DeviceMemPtr &device_addr, Dynam
                     << ", peak mem: " << UsedMemPeakStatistics() << ", in use mem: " << TotalUsedMemStatistics()
                     << ", device address addr: " << mem_buf->device_addr_ << ", size: " << mem_buf->size_;
   }
+  device::tracker::CALL_MEMORY_TRACKER(FreeMemBlock, device_addr);
 
   if (mem_buf->status_ != origin_status) {
     DumpDynamicMemPoolDebugInfo();
@@ -671,6 +674,7 @@ void DynamicMemPoolBestFit::KeepTensorMemByAddr(const DeviceMemPtr &device_addr,
   MS_EXCEPTION_IF_NULL(device_addr);
   // Fetch the memblock and membuf by the device address.
   auto [mem_block, mem_buf, mem_mng] = FindByKeepAddr(device_addr);
+  device::tracker::CALL_MEMORY_TRACKER(AllocMemBlock, device_addr, size, GetMemoryPoolType(), mem_block->stream_id_);
   MS_EXCEPTION_IF_NULL(mem_block);
   MS_EXCEPTION_IF_NULL(mem_buf);
   MS_EXCEPTION_IF_NULL(mem_mng);
@@ -788,6 +792,8 @@ void DynamicMemPoolBestFit::ReleaseDeviceRes() {
   };
   fn(common_mem_);
   fn(persistent_mem_);
+
+  tracker::MemTrackerManager::GetInstance().Dump();
 }
 
 void DynamicMemPoolBestFit::DumpDynamicMemPoolStateInfo() {

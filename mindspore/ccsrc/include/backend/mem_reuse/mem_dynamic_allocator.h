@@ -116,6 +116,7 @@ class BACKEND_EXPORT DynamicMemPoolBestFit {
   // Set mem pool block size
   virtual void SetMemPoolBlockSize(size_t available_device_mem_size);
   virtual size_t GetMaxUsedMemSize() const { return 0; }
+  virtual std::string GetMemoryPoolType() const { return "Other"; }
 #ifdef WITH_BACKEND
 
  protected:

@@ -36,6 +36,7 @@ class BACKEND_EXPORT CPUMemoryPool : public DynamicMemPoolBestFit {
   size_t AllocDeviceMem(size_t size, DeviceMemPtr *addr) override;
   bool FreeDeviceMem(const DeviceMemPtr &addr) override;
   size_t free_mem_size() override;
+  std::string GetMemoryPoolType() const override { return "CPU"; }
 
  private:
   CPUMemoryPool() = default;
