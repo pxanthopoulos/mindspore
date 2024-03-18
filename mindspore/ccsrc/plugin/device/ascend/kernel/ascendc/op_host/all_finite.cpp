@@ -3,21 +3,114 @@
  */
 #include "all_finite_tiling.h"
 #include "register/op_def_registry.h"
+#include "tiling/platform/platform_ascendc.h"
 
 namespace optiling {
-const uint32_t BLOCK_DIM = 8;
-const uint32_t TILE_NUM = 8;
+#define CEIL_DIV(x, y) (((y) == 0) ? 0 : (((x) + (y)-1) / (y)))
+#define UP_ROUND(in, round) ((((in) + (round)-1) / (round)) * (round))
+void ElewiseTailCoreTiling(const uint32_t &aligned, const uint32_t &total_num, uint32_t &avg_block_count,
+                           uint32_t &tail_block_count, uint32_t &core_num) {
+  avg_block_count = CEIL_DIV(total_num, core_num);
+  avg_block_count = UP_ROUND(avg_block_count, aligned);
+  core_num = CEIL_DIV(total_num, avg_block_count);
+  tail_block_count = total_num - (core_num - 1) * avg_block_count;
+}
+
+void ElewiseTailUbTiling(const uint32_t aligned_factor, const uint32_t max_factor, const uint32_t total_num,
+                         uint32_t &ub_num, uint32_t &ub_loop, uint32_t &ub_tail) {
+  ub_loop = CEIL_DIV(total_num, max_factor);
+  uint32_t ub_tmp_count = CEIL_DIV(total_num, ub_loop);
+  ub_num = (ub_tmp_count + aligned_factor - 1) / aligned_factor * aligned_factor;
+  if (ub_num > max_factor) {
+    ub_num = ub_tmp_count / aligned_factor * aligned_factor;
+  }
+  ub_loop = CEIL_DIV(total_num, ub_num);
+  ub_tail = total_num - (ub_loop - 1) * ub_num;
+  ub_tail = UP_ROUND(ub_tail, aligned_factor);
+}
+
+void ElewiseTailTiling(AllFiniteTilingDataLocal *tiling, const uint32_t total_num, const uint32_t aligned_factor,
+                       const uint32_t max_ub_factor) {
+  tiling->buffer_num = 1;
+
+  tiling->avg_block_count = 0;
+  tiling->avg_block_ub_num = 0;
+  tiling->avg_block_ub_tail = 0;
+  tiling->avg_block_ub_loop = 0;
+
+  tiling->tail_block_count = 0;
+  tiling->tail_block_ub_num = 0;
+  tiling->tail_block_ub_tail = 0;
+  tiling->tail_block_ub_loop = 0;
+
+  bool need_multi_core = total_num > aligned_factor;
+
+  if (need_multi_core) {
+    /* core count */
+    ElewiseTailCoreTiling(aligned_factor, total_num, tiling->avg_block_count, tiling->tail_block_count,
+                          tiling->block_dim);
+
+    /* buffer num */
+    bool need_double_buffer = tiling->avg_block_count > max_ub_factor;
+    tiling->buffer_num = need_double_buffer ? 2 : 1;
+
+    /* avg core ub count */
+    ElewiseTailUbTiling(aligned_factor, max_ub_factor, tiling->avg_block_count, tiling->avg_block_ub_num,
+                        tiling->avg_block_ub_loop, tiling->avg_block_ub_tail);
+
+    /* tail core ub count */
+    ElewiseTailUbTiling(aligned_factor, max_ub_factor, tiling->tail_block_count, tiling->tail_block_ub_num,
+                        tiling->tail_block_ub_loop, tiling->tail_block_ub_tail);
+
+  } else {
+    tiling->block_dim = 1;
+    tiling->tail_block_count = total_num;
+    tiling->tail_block_ub_num = UP_ROUND(total_num, aligned_factor);
+    tiling->tail_block_ub_tail = UP_ROUND(total_num, aligned_factor);
+    tiling->tail_block_ub_loop = 1;
+  }
+  return;
+}
+
+int32_t GetAllFiniteMaxUbCount() {
+  const uint32_t bit_block = 8;
+  uint32_t ele_dsize = sizeof(int16_t) * bit_block;
+  ele_dsize = ele_dsize + sizeof(int16_t) * 2 * bit_block + 1;
+  uint32_t ub_buffer = 192 * 1024 - 80 - 64 * 2;
+  uint32_t ub_count = ub_buffer / ele_dsize / 2 * bit_block;
+  return ub_count;
+}
+
+void GetAllFiniteTiling(AllFiniteTilingDataLocal *tiling, uint32_t total) {
+  uint32_t max_ub_factor = GetAllFiniteMaxUbCount();
+  const uint32_t aligned_factor = 256;
+  ElewiseTailTiling(tiling, total, aligned_factor, max_ub_factor);
+}
+
 static ge::graphStatus TilingFunc(gert::TilingContext *context) {
-  TilingData tiling;
+  AllFiniteTilingDataLocal local_tiling;
   uint32_t totalLength = context->GetInputTensor(0)->GetShapeSize();
-  context->SetBlockDim(BLOCK_DIM);
-  tiling.set_totalLength(totalLength);
-  tiling.set_tileNum(TILE_NUM);
+  auto ascendcPlatform = platform_ascendc::PlatformAscendC(context->GetPlatformInfo());
+  auto coreNum = ascendcPlatform.GetCoreNum();
+
+  local_tiling.block_dim = coreNum * 2;
+  GetAllFiniteTiling(&local_tiling, totalLength);
+
+  AllFiniteTilingData tiling;
+  tiling.set_avg_block_count(local_tiling.avg_block_count);
+  tiling.set_avg_block_ub_num(local_tiling.avg_block_ub_num);
+  tiling.set_avg_block_ub_tail(local_tiling.avg_block_ub_tail);
+  tiling.set_avg_block_ub_loop(local_tiling.avg_block_ub_loop);
+  tiling.set_tail_block_count(local_tiling.tail_block_count);
+  tiling.set_tail_block_ub_num(local_tiling.tail_block_ub_num);
+  tiling.set_tail_block_ub_tail(local_tiling.tail_block_ub_tail);
+  tiling.set_tail_block_ub_loop(local_tiling.tail_block_ub_loop);
+  tiling.set_buffer_num(local_tiling.buffer_num);
+  tiling.set_block_dim(local_tiling.block_dim);
+
+  context->SetBlockDim(local_tiling.block_dim);
   tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
   context->GetRawTilingData()->SetDataSize(tiling.GetDataSize());
-  context->SetTilingKey(1);
-  size_t *currentWorkspace = context->GetWorkspaceSizes(1);
-  currentWorkspace[0] = 0;
   return ge::GRAPH_SUCCESS;
 }
 }  // namespace optiling
@@ -36,14 +129,14 @@ class AllFinite : public OpDef {
   explicit AllFinite(const char *name) : OpDef(name) {
     this->Input("gradient")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT, ge::DT_INT32})
-      .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
+      .DataType({ge::DT_FLOAT16})
+      .Format({ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND});
     this->Output("is_finite")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_BOOL, ge::DT_BOOL, ge::DT_BOOL})
-      .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
+      .DataType({ge::DT_BOOL})
+      .Format({ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND});
 
     this->SetInferShape(ge::InferShape);
 
