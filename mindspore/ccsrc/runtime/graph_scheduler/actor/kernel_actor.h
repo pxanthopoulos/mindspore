@@ -71,6 +71,7 @@ class KernelActor : public DebugAwareActor {
         has_dynamic_(false),
         enable_async_infer_(false),
         kernel_info_(nullptr),
+        kernel_mod_(nullptr),
         somas_info_(nullptr),
         real_input_num_(0),
         strategy_(strategy),

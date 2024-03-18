@@ -1380,6 +1380,53 @@ void ControlNodeScheduler::LinkControlArrowForLoopCountActor(const ActorSet *act
   }
 }
 
+void ControlNodeScheduler::LinkOutputControlArrowForActor(ActorSet *const actor_set,
+                                                          const GraphCompilerInfo &graph_compiler_info) const {
+  MS_EXCEPTION_IF_NULL(actor_set);
+  const auto &parser = graph_compiler_info.control_node_parser_;
+  MS_EXCEPTION_IF_NULL(parser);
+  // Link control arrows from no output kernel actor to the corresponding exit actor.
+  for (auto &kernel_actor : actor_set->kernel_actors_) {
+    MS_EXCEPTION_IF_NULL(kernel_actor);
+    if ((kernel_actor->output_data_arrows_.size() == 0) && (kernel_actor->output_control_arrows_.size() == 0) &&
+        (!IsInlineKernelActor(kernel_actor))) {
+      auto kernel_graph = AnfAlgo::FetchKernelGraph(kernel_actor->kernel().get());
+      MS_EXCEPTION_IF_NULL(kernel_graph);
+      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
+      auto to_actor = FetchActor(to_actor_name);
+      MS_EXCEPTION_IF_NULL(to_actor);
+      SchedulerHelper::AddControlArrow(kernel_actor.get(), to_actor);
+    }
+  }
+
+  // Link control arrows from no super kernel actor to the corresponding exit actor.
+  for (auto &super_actor : actor_set->super_kernel_actors_) {
+    MS_EXCEPTION_IF_NULL(super_actor);
+    if ((super_actor->output_data_arrows_.size() == 0) && (super_actor->output_control_arrows_.size() == 0)) {
+      auto kernel_graph = super_actor->graph();
+      MS_EXCEPTION_IF_NULL(kernel_graph);
+      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
+      auto to_actor = FetchActor(to_actor_name);
+      MS_EXCEPTION_IF_NULL(to_actor);
+      SchedulerHelper::AddControlArrow(super_actor.get(), to_actor);
+    }
+  }
+
+  // Link control arrows from no super kernel actor to the corresponding exit actor.
+  for (auto &any_type_kernel_actor : actor_set->any_type_kernel_actors_) {
+    MS_EXCEPTION_IF_NULL(any_type_kernel_actor);
+    if ((any_type_kernel_actor->output_data_arrows_.size() == 0) &&
+        (any_type_kernel_actor->output_control_arrows_.size() == 0)) {
+      auto kernel_graph = any_type_kernel_actor->graph();
+      MS_EXCEPTION_IF_NULL(kernel_graph);
+      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
+      auto to_actor = FetchActor(to_actor_name);
+      MS_EXCEPTION_IF_NULL(to_actor);
+      SchedulerHelper::AddControlArrow(any_type_kernel_actor.get(), to_actor);
+    }
+  }
+}
+
 void ControlNodeScheduler::LinkControlArrowForKernelActor(ActorSet *const actor_set,
                                                           const GraphCompilerInfo &graph_compiler_info) const {
   MS_EXCEPTION_IF_NULL(actor_set);
@@ -1431,47 +1478,7 @@ void ControlNodeScheduler::LinkControlArrowForKernelActor(ActorSet *const actor_
     MS_EXCEPTION_IF_NULL(from_actor);
     SchedulerHelper::AddControlArrow(from_actor, no_input_kernel_actor.get());
   }
-
-  // Link control arrows from no output kernel actor to the corresponding exit actor.
-  for (auto &kernel_actor : actor_set->kernel_actors_) {
-    MS_EXCEPTION_IF_NULL(kernel_actor);
-    if ((kernel_actor->output_data_arrows_.size() == 0) && (kernel_actor->output_control_arrows_.size() == 0) &&
-        (!IsInlineKernelActor(kernel_actor))) {
-      auto kernel_graph = AnfAlgo::FetchKernelGraph(kernel_actor->kernel().get());
-      MS_EXCEPTION_IF_NULL(kernel_graph);
-      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
-      auto to_actor = FetchActor(to_actor_name);
-      MS_EXCEPTION_IF_NULL(to_actor);
-      SchedulerHelper::AddControlArrow(kernel_actor.get(), to_actor);
-    }
-  }
-
-  // Link control arrows from no super kernel actor to the corresponding exit actor.
-  for (auto &super_actor : actor_set->super_kernel_actors_) {
-    MS_EXCEPTION_IF_NULL(super_actor);
-    if ((super_actor->output_data_arrows_.size() == 0) && (super_actor->output_control_arrows_.size() == 0)) {
-      auto kernel_graph = super_actor->graph();
-      MS_EXCEPTION_IF_NULL(kernel_graph);
-      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
-      auto to_actor = FetchActor(to_actor_name);
-      MS_EXCEPTION_IF_NULL(to_actor);
-      SchedulerHelper::AddControlArrow(super_actor.get(), to_actor);
-    }
-  }
-
-  // Link control arrows from no super kernel actor to the corresponding exit actor.
-  for (auto &any_type_kernel_actor : actor_set->any_type_kernel_actors_) {
-    MS_EXCEPTION_IF_NULL(any_type_kernel_actor);
-    if ((any_type_kernel_actor->output_data_arrows_.size() == 0) &&
-        (any_type_kernel_actor->output_control_arrows_.size() == 0)) {
-      auto kernel_graph = any_type_kernel_actor->graph();
-      MS_EXCEPTION_IF_NULL(kernel_graph);
-      auto to_actor_name = parser->FetchGroupNameByKernelGraph(kernel_graph) + kExitActorNameSuffix;
-      auto to_actor = FetchActor(to_actor_name);
-      MS_EXCEPTION_IF_NULL(to_actor);
-      SchedulerHelper::AddControlArrow(any_type_kernel_actor.get(), to_actor);
-    }
-  }
+  LinkOutputControlArrowForActor(actor_set, graph_compiler_info);
 }
 
 void ControlNodeScheduler::LinkControlArrowByAutoMonad(ControlActor *to_actor, const AnfNodePtr &from_node,

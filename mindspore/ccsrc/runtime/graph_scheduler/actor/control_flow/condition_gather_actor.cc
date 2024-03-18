@@ -87,10 +87,15 @@ void ConditionGatherActor::Init() {
         MS_LOG(DEBUG) << "Somas keep output device address:" << output_address << " ptr:" << output_address->GetPtr();
         MS_EXCEPTION_IF_NULL(somas_info_);
         (void)somas_info_->InsertGraphOutputInfo(output_address.get(), somas_outputs[i].first, somas_outputs[i].second);
+        output_address->set_from_mem_pool(true);
       } else {
         UpdateRefCount(output_address.get(), true);
       }
     }
+  }
+  if (output_device_tensors_.size() != input_device_tensors_.size()) {
+    MS_LOG(EXCEPTION) << "Invalid input tensor size:" << input_device_tensors_.size()
+                      << " and output size:" << output_device_tensors_.size() << " for actor:" << GetAID();
   }
 }
 
@@ -118,6 +123,7 @@ void ConditionGatherActor::FetchInput(OpContext<DeviceTensor> *const context) {
       }
       MS_EXCEPTION_IF_NULL(input_data->data_);
       input_device_tensors_[IntToSize(input_data->index_) - start_index] = input_data->data_;
+
       memory_free_list_.emplace_back(input_data->data_);
     }
   }
@@ -159,6 +165,9 @@ void ConditionGatherActor::FetchInput(OpContext<DeviceTensor> *const context) {
       SET_OPCONTEXT_FAIL_RET_WITH_ERROR((*context), error_info);
     }
     output_data_[i].first->data_ = input_device_tensors_[from_index];
+    if (output_device_tensors_[from_index]->from_mem_pool()) {
+      input_device_tensors_[from_index]->set_from_mem_pool(true);
+    }
   }
 }
 

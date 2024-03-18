@@ -741,6 +741,29 @@ void InlineControlFlowScheduler::Link(ActorSet *actor_set, const GraphCompilerIn
   }
   for (const auto &kernel_actor : actor_set->kernel_actors_) {
     MS_EXCEPTION_IF_NULL(kernel_actor);
+    if ((kernel_actor->input_datas_num_ == 0) && (kernel_actor->input_controls_num_ == 0) &&
+        IsInlineKernelActor(kernel_actor)) {
+      const auto &branch_name = GetBranchNameByKernelActor(kernel_actor.get());
+      const auto &iter = branch_name_to_switch_actor.find(branch_name);
+      if (iter == branch_name_to_switch_actor.end()) {
+        MS_LOG(EXCEPTION) << "Failed to get condition switch actor by branch name:" << branch_name;
+      }
+      MS_LOG(DEBUG) << "Inline control flow scheduler add control flow from switch actor:" << iter->second->GetAID()
+                    << " to kernel actor:" << kernel_actor->GetAID();
+      SchedulerHelper::AddControlArrow(iter->second, kernel_actor.get());
+    }
+    if (kernel_actor->output_data_arrows_.size() == 0 && kernel_actor->output_control_arrows_.size() == 0 &&
+        IsInlineKernelActor(kernel_actor)) {
+      const auto &branch_name = GetBranchNameByKernelActor(kernel_actor.get());
+      if (branch_name_to_gather_actor.find(branch_name) == branch_name_to_gather_actor.end()) {
+        MS_LOG(EXCEPTION) << "Failed to get condition gather actor by branch name:" << branch_name;
+      }
+      MS_LOG(DEBUG) << "Inline control flow scheduler add control flow from kernel actor:" << kernel_actor->GetAID()
+                    << " to gather actor:" << branch_name_to_gather_actor[branch_name]->GetAID();
+      SchedulerHelper::AddControlArrow(kernel_actor.get(), branch_name_to_gather_actor[branch_name]);
+    }
+  }
+  for (const auto &kernel_actor : actor_set->kernel_actors_) {
     if (kernel_actor->type() == KernelTransformType::kConditionSwitchActor) {
       HandleConditionSwitchActor(kernel_actor);
     } else if (kernel_actor->type() == KernelTransformType::kConditionGatherActor) {
