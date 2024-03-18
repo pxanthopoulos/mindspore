@@ -25,6 +25,28 @@
 
 namespace mindspore {
 namespace opt {
+bool IsValidInlinePartial(const AnfNodePtr &node) {
+  MS_EXCEPTION_IF_NULL(node);
+  if(!common::AnfAlgo::CheckPrimitiveType(node, prim::kPrimPartial)) {
+    return false;
+  }
+  const auto &cnode = node->cast<CNodePtr>();
+  MS_EXCEPTION_IF_NULL(cnode);
+  if(cnode->size()<=kPartialGraphIndex) {
+    return false;
+  }
+  auto sub_graph = common::AnfAlgo::GetValueNodeFuncGraph(cnode->input(kIndex1));
+  if(sub_graph == nullptr || sub_graph->return_node()==nullptr || sub_graph->return_node()->size()<=1) {
+    return false;
+  }
+  const auto &outputs = common::AnfAlgo::GetAllOutputWithIndex(sub_graph->return_node()->input(1));
+  if(std::any_of(outputs.begin(), outputs.end(), [](const std::pair<AnfNodePtr, int64_t> &pair){
+    return pair.first !=nullptr && pair.first->isa<ValueNode>();})){
+    return false;
+  }
+  return true;
+}
+
 bool IsValidInlineSwitch(const AnfNodePtr &node) {
   MS_EXCEPTION_IF_NULL(node);
   if (!common::AnfAlgo::CheckPrimitiveType(node, prim::kPrimSwitch)) {
@@ -36,9 +58,30 @@ bool IsValidInlineSwitch(const AnfNodePtr &node) {
     MS_LOG(DEBUG) << "Invalid switch node" << cnode->DebugString();
     return false;
   }
-  return common::AnfAlgo::CheckPrimitiveType(cnode->input(kSwitchTrueBranchIndex), prim::kPrimPartial) &&
-         common::AnfAlgo::CheckPrimitiveType(cnode->input(kSwitchFalseBranchIndex), prim::kPrimPartial);
+  if((!IsValidInlinePartial(cnode->input(kSwitchTrueBranchIndex))) ||
+         (!IsValidInlinePartial(cnode->input(kSwitchFalseBranchIndex)))){
+    return false;
+  }
+  return true;
 }
+
+bool IsAbstractIncludeDynamicLen(const abstract::AbstractBasePtr &abstract) {
+  if(abstract == nullptr || (!abstract->isa<abstract::AbstractSequence>())) {
+    return false;
+  }
+  const auto &sequence_abs = abstract->cast<abstract::AbstractSequencePtr>();
+  MS_EXCEPTION_IF_NULL(sequence_abs);
+  if(sequence_abs->dynamic_len()) {
+    return true;
+  }
+  for(const auto &sub_abs : sequence_abs->elements()) {
+    if(IsAbstractIncludeDynamicLen(sub_abs)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool SwitchNotCut::Run(const FuncGraphPtr &func_graph) {
   auto context = MsContext::GetInstance();
   MS_EXCEPTION_IF_NULL(context);
@@ -58,36 +101,36 @@ bool SwitchNotCut::Run(const FuncGraphPtr &func_graph) {
   auto manager = func_graph->manager();
   MS_EXCEPTION_IF_NULL(manager);
   for (auto &node : all_nodes) {
-    if (IsPrimitiveCNode(node, prim::kPrimPartial)) {
-      auto iter = manager->node_users().find(node);
-      if (iter == manager->node_users().end()) {
-        continue;
-      }
-      if (!std::any_of(iter->second.begin(), iter->second.end(), [](const std::pair<AnfNodePtr, int> &node_index) {
-            return IsPrimitiveCNode(node_index.first, prim::kPrimSwitch) && IsValidInlineSwitch(node_index.first);
-          })) {
-        continue;
-      }
-      auto cnode = node->cast<CNodePtr>();
-      auto partial_graph = cnode->input(kIndex1);
-      auto sub_graph = common::AnfAlgo::GetValueNodeFuncGraph(partial_graph);
-      sub_graph->set_flag(kFlagSwitchInline, true);
+    if(!node->isa<CNode>()) {
+      continue;
     }
-    if (IsOneOfPrimitiveCNode(node, {prim::kPrimPartial, prim::kPrimSwitch})) {
-      if (IsPrimitiveCNode(node, prim::kPrimSwitch) && (!IsValidInlineSwitch(node))) {
-        continue;
-      }
-      auto cnode = node->cast<CNodePtr>();
-      MS_EXCEPTION_IF_NULL(cnode);
-      cnode->AddPrimalAttr(kAttrNotCut, MakeValue(true));
-    } else if (utils::isa<CNodePtr>(node)) {
-      auto cnode = node->cast<CNodePtr>();
-      MS_EXCEPTION_IF_NULL(cnode);
-      auto primitive_input = cnode->input(kAnfPrimitiveIndex);
-      if (IsPrimitiveCNode(primitive_input, prim::kPrimSwitch) && IsValidInlineSwitch(primitive_input)) {
-        cnode->AddPrimalAttr(kAttrNotCut, MakeValue(true));
-      }
+    const auto &cnode = node->cast<CNodePtr>();
+    MS_EXCEPTION_IF_NULL(cnode);
+    if(cnode->inputs().empty()) {
+      continue;
     }
+    if(IsAbstractIncludeDynamicLen(cnode->abstract())){
+      continue;
+    }
+    auto primitive_input = cnode->input(kAnfPrimitiveIndex);
+    if (!IsPrimitiveCNode(primitive_input, prim::kPrimSwitch) || (!IsValidInlineSwitch(primitive_input))) {
+      continue;
+    }
+    cnode->AddPrimalAttr(kAttrNotCut, MakeValue(true));
+    const auto &switch_node = primitive_input->cast<CNodePtr>();
+    switch_node->AddPrimalAttr(kAttrNotCut, MakeValue(true));
+    const auto &true_partial_node = switch_node->input(kSwitchTrueBranchIndex)->cast<CNodePtr>();
+    true_partial_node->AddPrimalAttr(kAttrNotCut, MakeValue(true));
+    auto true_partial_graph = true_partial_node->input(kIndex1);
+    auto true_sub_graph = common::AnfAlgo::GetValueNodeFuncGraph(true_partial_graph);
+    MS_EXCEPTION_IF_NULL(true_sub_graph);
+    true_sub_graph->set_flag(kFlagSwitchInline, true);
+    const auto &false_partial_node = switch_node->input(kSwitchFalseBranchIndex)->cast<CNodePtr>();
+    false_partial_node->AddPrimalAttr(kAttrNotCut, MakeValue(true));
+    auto false_partial_graph = false_partial_node->input(kIndex1);
+    auto false_sub_graph = common::AnfAlgo::GetValueNodeFuncGraph(false_partial_graph);
+    MS_EXCEPTION_IF_NULL(false_sub_graph);
+    false_sub_graph->set_flag(kFlagSwitchInline, true);
   }
   return false;
 }
