@@ -135,7 +135,6 @@ class BACKEND_EXPORT DynamicMemPoolBestFit {
   virtual size_t AllocDeviceMemByEagerFree(size_t size, DeviceMemPtr *addr) { return 0; }
   virtual size_t FreeDeviceMemByEagerFree(const DeviceMemPtr addr, const size_t size) { return 0; }
   const size_t FreeIdleMemsByEagerFree();
-  void UpdateBorderAddr(DeviceMemPtr left_addr, DeviceMemPtr right_addr);
 
  private:
   // Find available memory buf from total pools by status, which contains idle and eager free.
@@ -198,10 +197,6 @@ class BACKEND_EXPORT DynamicMemPoolBestFit {
   size_t config_unit_size_{kDynamicMemAllocUnitSize};
   // Flag for eager free routine. This flag set to false when initializing, and set to true when triggering oom.
   bool is_trigger_eager_free_{false};
-  // Max addr
-  DeviceMemPtr max_addr_ = nullptr;
-  // Min addr
-  DeviceMemPtr min_addr_ = nullptr;
 };
 
 // Recording information for debugging the memory allocator.
@@ -259,6 +254,9 @@ class DynamicMemBlock {
   ~DynamicMemBlock() { block_all_mem_buf_map_.clear(); }
   const DeviceMemPtr &device_addr() const { return device_addr_base_; }
   size_t size() const { return mem_block_size_; }
+  void update_border_addr(DeviceMemPtr left_addr, DeviceMemPtr right_addr);
+  size_t get_actual_peak();
+
 #ifdef WITH_BACKEND
 
  private:
@@ -269,6 +267,11 @@ class DynamicMemBlock {
   DeviceAddrMapMemBuf block_all_mem_buf_map_;
 
   DeviceMemPtr device_addr_base_{nullptr};
+
+  // Max addr
+  DeviceMemPtr max_addr_ = nullptr;
+  // Min addr
+  DeviceMemPtr min_addr_ = nullptr;
 
   size_t mem_block_size_{0};
   const uint32_t stream_id_;
@@ -292,6 +295,7 @@ struct MemStatusManager {
 
   void AddMemBlock(const DynamicMemBlockPtr &mem_block, uint32_t stream_id);
   void DoAddMemBlock(const DynamicMemBlockPtr &mem_block, std::vector<DynamicMemBlockPtr> *mem_block_list);
+  size_t CalActualPeak();
 
   SizeMapMemBuf &GetIdleMemBufMap(uint32_t stream_id) { return GetOrCreateSizeMapMemBuf(&idle_mem_bufs_, stream_id); }
 
@@ -326,6 +330,7 @@ struct MemStatusManager {
   DeviceState mps_;
 
   std::vector<DynamicMemBlockPtr> mem_block_list_;
+  std::vector<DynamicMemBlockPtr> mem_block_insertion_order_;
   std::map<uint32_t, std::vector<DynamicMemBlockPtr>> mem_blocks_;
 
   std::map<uint32_t, SizeMapMemBuf> idle_mem_bufs_;
