@@ -72,17 +72,17 @@ void ElewiseTailTiling(AllFiniteTilingDataLocal *tiling, const uint32_t total_nu
   return;
 }
 
-int32_t GetAllFiniteMaxUbCount() {
+int32_t GetAllFiniteMaxUbCount(uint32_t ele_size) {
   const uint32_t bit_block = 8;
-  uint32_t ele_dsize = sizeof(int16_t) * bit_block;
-  ele_dsize = ele_dsize + sizeof(int16_t) * 2 * bit_block + 1;
+  uint32_t ele_dsize = ele_size * bit_block;
+  ele_dsize = ele_dsize + ele_size * 2 * bit_block + 1;
   uint32_t ub_buffer = 192 * 1024 - 80 - 64 * 2;
   uint32_t ub_count = ub_buffer / ele_dsize / 2 * bit_block;
   return ub_count;
 }
 
 void GetAllFiniteTiling(AllFiniteTilingDataLocal *tiling, uint32_t total) {
-  uint32_t max_ub_factor = GetAllFiniteMaxUbCount();
+  uint32_t max_ub_factor = GetAllFiniteMaxUbCount(tiling->in_dtype == 0 ? 4 : 2);
   const uint32_t aligned_factor = 256;
   ElewiseTailTiling(tiling, total, aligned_factor, max_ub_factor);
 }
@@ -94,6 +94,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
   auto coreNum = ascendcPlatform.GetCoreNum();
 
   local_tiling.block_dim = coreNum * 2;
+  local_tiling.in_dtype = context->GetInputTensor(0)->GetDataType();
   GetAllFiniteTiling(&local_tiling, totalLength);
 
   AllFiniteTilingData tiling;
@@ -107,6 +108,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
   tiling.set_tail_block_ub_loop(local_tiling.tail_block_ub_loop);
   tiling.set_buffer_num(local_tiling.buffer_num);
   tiling.set_block_dim(local_tiling.block_dim);
+  tiling.set_in_dtype(local_tiling.in_dtype);
 
   context->SetBlockDim(local_tiling.block_dim);
   tiling.SaveToBuffer(context->GetRawTilingData()->GetData(), context->GetRawTilingData()->GetCapacity());
@@ -129,14 +131,14 @@ class AllFinite : public OpDef {
   explicit AllFinite(const char *name) : OpDef(name) {
     this->Input("gradient")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_FLOAT16})
-      .Format({ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND});
+      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT})
+      .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
     this->Output("is_finite")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_BOOL})
-      .Format({ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND});
+      .DataType({ge::DT_BOOL,ge::DT_BOOL})
+      .Format({ge::FORMAT_ND, ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
 
     this->SetInferShape(ge::InferShape);
 

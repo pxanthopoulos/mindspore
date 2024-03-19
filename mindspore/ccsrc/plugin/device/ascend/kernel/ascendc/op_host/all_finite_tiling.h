@@ -16,6 +16,7 @@ struct AllFiniteTilingDataLocal {
   uint32_t tail_block_ub_loop;
   uint32_t buffer_num;
   uint32_t block_dim;
+  uint32_t in_dtype;
 };
 
 BEGIN_TILING_DATA_DEF(AllFiniteTilingData);
@@ -29,6 +30,7 @@ TILING_DATA_FIELD_DEF(uint32_t, tail_block_ub_tail);
 TILING_DATA_FIELD_DEF(uint32_t, tail_block_ub_loop);
 TILING_DATA_FIELD_DEF(uint32_t, buffer_num);
 TILING_DATA_FIELD_DEF(uint32_t, block_dim);
+TILING_DATA_FIELD_DEF(uint32_t, in_dtype);
 END_TILING_DATA_DEF;
 REGISTER_TILING_DATA_CLASS(AllFinite, AllFiniteTilingData);
 }  // namespace optiling

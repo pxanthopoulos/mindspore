@@ -10,26 +10,31 @@ using namespace AscendC;
 constexpr int32_t BUFFER_NUM = 1;
 constexpr int32_t OUT_MIN_LEN = 16;
 
+template <typename IN_TYPE>
 class KernelAllFinite {
  public:
   __aicore__ explicit KernelAllFinite() {}
-  __aicore__ inline void setArgs(GM_ADDR in, GM_ADDR out, GM_ADDR tiling) {
-    gm_x = reinterpret_cast<__gm__ uint16_t *>(in);
+  __aicore__ inline void setArgs(GM_ADDR in, GM_ADDR out) {
+    gm_x = reinterpret_cast<__gm__ IN_TYPE *>(in);
     gm_y = reinterpret_cast<__gm__ half *>(out);
     core_idx = get_block_idx();
     core_num = get_block_num();
-
-    avg_block_count = (uint32_t)(*((__gm__ uint32_t *)tiling + 0));
-    avg_block_ub_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 1));
-    avg_block_ub_tail = (uint32_t)(*((__gm__ uint32_t *)tiling + 2));
-    avg_block_ub_loop = (uint32_t)(*((__gm__ uint32_t *)tiling + 3));
-
-    tail_block_count = (uint32_t)(*((__gm__ uint32_t *)tiling + 4));
-    tail_block_ub_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 5));
-    tail_block_ub_tail = (uint32_t)(*((__gm__ uint32_t *)tiling + 6));
-    tail_block_ub_loop = (uint32_t)(*((__gm__ uint32_t *)tiling + 7));
-
-    buffer_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 8));
+  }
+  __aicore__ inline void setTiling(uint32_t avg_block_count_in, uint32_t avg_block_ub_num_in,
+                                   uint32_t avg_block_ub_tail_in, uint32_t avg_block_ub_loop_in,
+                                   uint32_t tail_block_count_in, uint32_t tail_block_ub_num_in,
+                                   uint32_t tail_block_ub_tail_in, uint32_t tail_block_ub_loop_in,
+                                   uint32_t buffer_num_in, uint32_t in_dtype_in) {
+    avg_block_count = avg_block_count_in;
+    avg_block_ub_num = avg_block_ub_num_in;
+    avg_block_ub_tail = avg_block_ub_tail_in;
+    avg_block_ub_loop = avg_block_ub_loop_in;
+    tail_block_count = tail_block_count_in;
+    tail_block_ub_num = tail_block_ub_num_in;
+    tail_block_ub_tail = tail_block_ub_tail_in;
+    tail_block_ub_loop = tail_block_ub_loop_in;
+    buffer_num = buffer_num_in;
+    dtype_in = in_dtype_in;
   }
 
   __aicore__ inline void Process() {
@@ -48,21 +53,24 @@ class KernelAllFinite {
     }
 
     Init(ub_count);
+    if (in_dtype == 1) {
+      ProcessHalf(ub_count, ub_tail, ub_loop);
+    } else if (in_dtype == 0) {
+      ProcessFp32(ub_count, ub_tail, ub_loop);
+    }
+  }
 
-    pipe.InitBuffer(tmpQue, buffer_num, ub_count * sizeof(uint16_t));
+ private:
+  __aicore__ inline void ProcessHalf(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop) {
+    AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
     AscendC::LocalTensor<uint16_t> tmp_t = tmpQue.AllocTensor<uint16_t>();
-
-    pipe.InitBuffer(maskQue, buffer_num, ub_count * sizeof(uint16_t));
     AscendC::LocalTensor<uint16_t> mask_t = maskQue.AllocTensor<uint16_t>();
     Duplicate(mask_t, (uint16_t)0x001F, ub_count);  //  0 00000 00000 11111
-
-    pipe.InitBuffer(compQue, buffer_num, ub_count / 8 * sizeof(uint8_t));
-    AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
 
     uint32_t loop = 0;
     for (; loop < ub_loop - 1; loop++) {
       CopyIn(loop, ub_count, ub_count);
-      Compute(ub_count, tmp_t, mask_t, comp_t, &loop);
+      ComputeHalf(ub_count, tmp_t, mask_t, comp_t, &loop);
     }
 
     /* for ub tail */
@@ -70,7 +78,7 @@ class KernelAllFinite {
       return;
     }
     CopyIn(loop, ub_count, ub_tail);
-    Compute(ub_count, tmp_t, mask_t, comp_t, &loop);
+    ComputeHalf(ub_count, tmp_t, mask_t, comp_t, &loop);
 
     /* free tmp local tensor */
     tmpQue.FreeTensor(tmp_t);
@@ -78,21 +86,48 @@ class KernelAllFinite {
     compQue.FreeTensor(comp_t);
   }
 
- private:
+  __aicore__ inline void ProcessFp32(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop) {
+    AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
+    AscendC::LocalTensor<uint32_t> tmp_t = tmpQue.AllocTensor<uint32_t>();
+    AscendC::LocalTensor<uint32_t> mask_t = maskQue.AllocTensor<uint32_t>();
+    Duplicate(mask_t, (uint32_t)0x00FF, ub_count);  //  0 00000000 000 0000 0000 0000 1111 1111
+
+    uint32_t loop = 0;
+    for (; loop < ub_loop - 1; loop++) {
+      CopyIn(loop, ub_count, ub_count);
+      ComputeFp32(ub_count, tmp_t, mask_t, comp_t, &loop);
+    }
+
+    /* for ub tail */
+    if (ub_tail == 0 || loop >= ub_loop) {
+      return;
+    }
+    CopyIn(loop, ub_count, ub_tail);
+    ComputeFp32(ub_count, tmp_t, mask_t, comp_t, &loop);
+
+    /* free tmp local tensor */
+    tmpQue.FreeTensor(tmp_t);
+    maskQue.FreeTensor(mask_t);
+    compQue.FreeTensor(comp_t);
+  }
+
   __aicore__ inline void Init(uint32_t count) {
     xGm.SetGlobalBuffer(gm_x + core_idx * avg_block_count);
     yGm.SetGlobalBuffer(gm_y);
-    pipe.InitBuffer(xQue, buffer_num, count * sizeof(uint16_t));
+    pipe.InitBuffer(xQue, buffer_num, count * sizeof(IN_TYPE));
+    pipe.InitBuffer(tmpQue, buffer_num, count * sizeof(IN_TYPE));
+    pipe.InitBuffer(maskQue, buffer_num, count * sizeof(IN_TYPE));
+    pipe.InitBuffer(compQue, buffer_num, count / 8 * sizeof(uint8_t));
   }
 
   __aicore__ inline void CopyIn(uint32_t idx, uint32_t stride, uint32_t count) {
-    AscendC::LocalTensor<uint16_t> x = xQue.AllocTensor<uint16_t>();
+    AscendC::LocalTensor<IN_TYPE> x = xQue.AllocTensor<IN_TYPE>();
     DataCopy(x, xGm[idx * stride], count);
     xQue.EnQue(x);
   }
 
-  __aicore__ inline void CheckValid(uint32_t count, AscendC::LocalTensor<uint16_t> shift_t,
-                                    AscendC::LocalTensor<uint16_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t) {
+  __aicore__ inline void CheckValidHalf(uint32_t count, AscendC::LocalTensor<uint16_t> shift_t,
+                                        AscendC::LocalTensor<uint16_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t) {
     AscendC::LocalTensor<uint16_t> in_t = xQue.DeQue<uint16_t>();
 
     AscendC::ShiftLeft<uint16_t>(shift_t, in_t, 1, count);
@@ -109,6 +144,23 @@ class KernelAllFinite {
     pipe_barrier(PIPE_ALL);
   }
 
+  __aicore__ inline void CheckValidFp32(uint32_t count, AscendC::LocalTensor<uint32_t> shift_t,
+                                        AscendC::LocalTensor<uint32_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t) {
+    AscendC::LocalTensor<uint32_t> in_t = xQue.DeQue<uint32_t>();
+
+    AscendC::ShiftLeft<uint32_t>(shift_t, in_t, 1, count);
+    pipe_barrier(PIPE_ALL);
+    AscendC::ShiftRight<uint32_t>(shift_t, shift_t, 24, count);
+    pipe_barrier(PIPE_ALL);
+
+    xQue.FreeTensor(in_t);
+
+    AscendC::LocalTensor<float> shift_fp32_t = shift_t.ReinterpretCast<float>();
+    AscendC::LocalTensor<float> mask_fp32_t = mask_t.ReinterpretCast<float>();
+
+    Compare(comp_t, shift_fp32_t, mask_fp32_t, AscendC::CMPMODE::EQ, count);
+    pipe_barrier(PIPE_ALL);
+  }
   __aicore__ inline void CombRes(uint32_t count, uint32_t *loop, AscendC::LocalTensor<uint8_t> comp_t,
                                  AscendC::LocalTensor<uint16_t> ui16_t) {
     AscendC::LocalTensor<half> half_comp_t = ui16_t.ReinterpretCast<half>();
@@ -139,11 +191,18 @@ class KernelAllFinite {
     }
   }
 
-  __aicore__ inline void Compute(uint32_t count, AscendC::LocalTensor<uint16_t> tmp_t,
-                                 AscendC::LocalTensor<uint16_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t,
-                                 uint32_t *loop) {
-    CheckValid(count, tmp_t, mask_t, comp_t);
+  __aicore__ inline void ComputeHalf(uint32_t count, AscendC::LocalTensor<uint16_t> tmp_t,
+                                     AscendC::LocalTensor<uint16_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t,
+                                     uint32_t *loop) {
+    CheckValidHalf(count, tmp_t, mask_t, comp_t);
     CombRes(count, loop, comp_t, tmp_t);
+  }
+
+  __aicore__ inline void ComputeFp32(uint32_t count, AscendC::LocalTensor<uint32_t> tmp_t,
+                                     AscendC::LocalTensor<uint32_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t,
+                                     uint32_t *loop) {
+    CheckValidFp32(count, tmp_t, mask_t, comp_t);
+    CombRes(count, loop, comp_t, tmp_t.ReinterpretCast<uint16_t>());
   }
 
   AscendC::TPipe pipe;
@@ -151,16 +210,17 @@ class KernelAllFinite {
   AscendC::TQue<AscendC::QuePosition::VECIN, 1> xQue;
   AscendC::TQue<AscendC::QuePosition::VECIN, 1> tmpQue, maskQue, compQue;
 
-  AscendC::GlobalTensor<uint16_t> xGm;
+  AscendC::GlobalTensor<IN_TYPE> xGm;
   AscendC::GlobalTensor<half> yGm;
 
-  __gm__ uint16_t *__restrict__ gm_x{nullptr};
+  __gm__ IN_TYPE *__restrict__ gm_x{nullptr};
   __gm__ half *__restrict__ gm_y{nullptr};
 
   uint32_t core_idx{0};
   uint32_t core_num{0};
 
   uint32_t buffer_num{0};
+  uint32_t in_dtype{0};
 
   uint32_t avg_block_count{0};
   uint32_t avg_block_ub_num{0};
@@ -174,8 +234,21 @@ class KernelAllFinite {
 };
 
 extern "C" __global__ __aicore__ void all_finite(GM_ADDR x, GM_ADDR z, GM_ADDR workspace, GM_ADDR tiling) {
-  KernelAllFinite op;
-  op.setArgs(x, z, tiling);
-  op.Process();
-}
+  GET_tiling_DATA(local_tiling, tiling);
 
+  if (local_tiling.in_dtype == 0) {
+    KernelAllFinite<uint32_t> op;
+    op.setArgs(x, z);
+    op.setTiling(local_tiling->avg_block_count, local_tiling->avg_block_ub_num, local_tiling->avg_block_ub_tail,
+                 local_tiling->avg_block_ub_loop, local_tiling->tail_block_count, local_tiling->tail_block_ub_num,
+                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num);
+    op.Process();
+  } else if () {
+    KernelAllFinite<uint16_t> op;
+    op.setArgs(x, z);
+    op.setTiling(local_tiling->avg_block_count, local_tiling->avg_block_ub_num, local_tiling->avg_block_ub_tail,
+                 local_tiling->avg_block_ub_loop, local_tiling->tail_block_count, local_tiling->tail_block_ub_num,
+                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num);
+    op.Process();
+  }
+}
