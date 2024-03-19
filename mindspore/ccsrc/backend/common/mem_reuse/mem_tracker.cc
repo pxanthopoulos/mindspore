@@ -316,8 +316,12 @@ void MemoryTrackerEnabled::Dump() {
   static const char kMemoryTracePath[] = "MS_MEMORY_TRACE_PATH";
   auto trace_path = common::GetEnv(kMemoryTracePath);
 
-  std::string block_csv_path = trace_path + "./rank_" + GetRankID() + "/memory_block.csv";
-  std::string task_csv_path = trace_path + "./rank_" + GetRankID() + "/task.csv";
+  if (trace_path.empty()) {
+    trace_path = "./";
+  }
+
+  std::string block_csv_path = trace_path + "/rank_" + GetRankID() + "/memory_block.csv";
+  std::string task_csv_path = trace_path + "/rank_" + GetRankID() + "/task.csv";
 
   Common::CreatePrefixPath(block_csv_path);
   Common::CreatePrefixPath(task_csv_path);
