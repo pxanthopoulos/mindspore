@@ -717,7 +717,7 @@ static inline double GetCurrentUSec() {
   return static_cast<double>(tv_usec);
 }
 
-#define PROF_START(stage) double start_msec_##stage = mindspore::GetCurrentUSec()
+#define PROF_START(stage) double start_usec_##stage = mindspore::GetCurrentUSec()
 #define PROF_END(stage)                                                                                               \
   do {                                                                                                                \
     double end_usec_##stage = mindspore::GetCurrentUSec();                                                            \
