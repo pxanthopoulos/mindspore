@@ -361,7 +361,8 @@ void KernelActor::SetSomasMemory(OpContext<DeviceTensor> *const context) const {
         MS_LOG(ERROR) << GetAID().Name() << " does not free address for graph output index: " << i;
         device_contexts_[0]->device_res_manager_->FreeMemory(output_device_tensors_[i]);
       }
-      MS_LOG(DEBUG) << "Set ptr:" << device_ptr << " to device address:" << output_device_tensors_[i];
+      MS_LOG(DEBUG) << "Set ptr:" << device_ptr << " to device address:" << output_device_tensors_[i]
+                    << " in actor:" << GetAID();
       device::tracker::CALL_MEMORY_TRACKER_WITH_FILE(
         AddMemInfo, GetAID().Name(), device::tracker::MemType::kInSideSomas, output_device_tensors_[i]->GetSize(),
         output_device_tensors_[i]->kernel_tensor().get());
