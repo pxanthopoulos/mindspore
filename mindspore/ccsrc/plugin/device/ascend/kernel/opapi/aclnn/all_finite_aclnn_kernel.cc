@@ -33,7 +33,9 @@ bool AllFiniteAscend::Launch(const std::vector<KernelTensor *> &inputs, const st
 
   aclrtMemsetAsync(outputs[kIndex0]->device_ptr(), outputs[kIndex0]->size(), 0, outputs[kIndex0]->size(), stream_ptr);
   for (size_t i = 0; i < inputs.size(); ++i) {
-    ParseGenExecutor(GEN_EXECUTOR(op_type_, inputs[i], outputs[kIndex0]));
+    const bool use_huge_pages = true;
+    auto res = GEN_EXECUTOR_CUST(op_type_, use_huge_pages, inputs[i], outputs[kIndex0]);
+    executor_ = std::get<kIndex1>(res);
     RunOp(stream_ptr, workspace);
   }
   return true;

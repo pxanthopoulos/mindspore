@@ -371,6 +371,8 @@ class TrainOneStepWithLossScaleCell(TrainOneStepCell):
         self.ascend_910bc_target = (MSContext.get_instance().get_ascend_soc_version() in ['ascend910b', 'ascend910c'])
         self.loss_scaling_manager = None
         self._ascend_check_overflow_mode = os.environ.get('MS_ASCEND_CHECK_OVERFLOW_MODE')
+        jit_kernel = "jit_level" in network.jit_config_dict and network.jit_config_dict["jit_level"] == "O0"
+        self.kernel_mode = os.environ.get('GRAPH_OP_RUN') == 1 or jit_kernel
 
 
         if isinstance(scale_sense, Cell):
@@ -477,6 +479,14 @@ class TrainOneStepWithLossScaleCell(TrainOneStepCell):
         else:
             overflow = self.less_equal(self.base, flag_sum)
         return overflow
+    
+    def _get_distributed_overflow_status_on_infnan_kernel_mode(self, compute_output):
+        """check overflow status on infnan kernel mode."""
+        overflow = P.AllFinite()(compute_output)
+
+        if self.is_distributed:
+            overflow = self.allreduce(overflow)
+        return overflow
 
     def _get_gpu_overflow_status(self, compute_output):
         """get overflow status of gpu."""
@@ -485,7 +495,11 @@ class TrainOneStepWithLossScaleCell(TrainOneStepCell):
 
     def _get_ascend_overflow_status_on_infnan_mode(self, compute_output):
         """get overflow status of ascend on infnan mode."""
-        overflow = self._get_distributed_overflow_status_on_infnan_mode(_ascend_grad_overflow, compute_output)
+        overflow = False
+        if self.kernel_mode:
+            overflow = self._get_distributed_overflow_status_on_infnan_kernel_mode(compute_output)
+        else:
+            overflow = self._get_distributed_overflow_status_on_infnan_mode(_ascend_grad_overflow, compute_output)
         return overflow
 
     def _get_ascend_overflow_status_on_saturation_mode(self, status, compute_output):
