@@ -36,7 +36,7 @@ bool AllFiniteAscend::Launch(const std::vector<KernelTensor *> &inputs, const st
     const bool use_huge_pages = true;
     auto res = GEN_EXECUTOR_CUST(op_type_, use_huge_pages, inputs[i], outputs[kIndex0]);
     executor_ = std::get<kIndex1>(res);
-    RunOp(stream_ptr, workspace);
+    RunOpSync(stream_ptr, workspace);
   }
   return true;
 }

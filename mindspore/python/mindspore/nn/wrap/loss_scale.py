@@ -372,7 +372,7 @@ class TrainOneStepWithLossScaleCell(TrainOneStepCell):
         self.loss_scaling_manager = None
         self._ascend_check_overflow_mode = os.environ.get('MS_ASCEND_CHECK_OVERFLOW_MODE')
         jit_kernel = "jit_level" in network.jit_config_dict and network.jit_config_dict["jit_level"] == "O0"
-        self.kernel_mode = os.environ.get('GRAPH_OP_RUN') == 1 or jit_kernel
+        self.kernel_mode = os.environ.get('GRAPH_OP_RUN') == "1" or jit_kernel
 
 
         if isinstance(scale_sense, Cell):
