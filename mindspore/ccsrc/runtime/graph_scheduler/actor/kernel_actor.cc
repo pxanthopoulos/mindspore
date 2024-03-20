@@ -457,7 +457,8 @@ void KernelActor::OnMemoryAllocFinish(OpContext<DeviceTensor> *const context) {
 
   bool skip_launch = CollectiveManager::instance()->need_reinit() || IsSkippedLaunch(kernel_, nullptr);
   if (!skip_launch && !LaunchKernel(context)) {
-    MS_LOG(EXCEPTION) << "#umsg#Kernel error:#umsg#Launch kernel failed: " + kernel_->fullname_with_scope();
+    MS_LOG(EXCEPTION) << "#umsg#Kernel error:#umsg#Launch kernel failed: " + kernel_->fullname_with_scope()
+                      << trace::DumpSourceLines(kernel_);
   }
 
   // Record mem info, because async send may free device info.
@@ -707,7 +708,8 @@ void KernelActor::ExecuteLaunchKernelTask(OpContext<DeviceTensor> *const context
   device_contexts_[0]->device_res_manager_->BindDeviceToCurrentThread(false);
   bool skip_launch = CollectiveManager::instance()->need_reinit() || IsSkippedLaunch(kernel_, nullptr);
   if (!skip_launch && !LaunchKernel(context)) {
-    MS_LOG(EXCEPTION) << "#umsg#Kernel error:#umsg#Launch kernel failed: " + kernel_->fullname_with_scope();
+    MS_LOG(EXCEPTION) << "#umsg#Kernel error:#umsg#Launch kernel failed: " + kernel_->fullname_with_scope()
+                      << trace::DumpSourceLines(kernel_);
   }
 
   if (ActorDispatcher::enable_multi_stream()) {
