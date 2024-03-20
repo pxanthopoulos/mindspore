@@ -42,7 +42,7 @@ namespace ops {
 namespace {
 BaseShapePtr AllFiniteInferShape(const PrimitivePtr &primitive, const std::vector<AbstractBasePtr> &) {
   MS_EXCEPTION_IF_NULL(primitive);
-  ShapeVector ret_shape = {1};
+  ShapeVector ret_shape = {};
   return std::make_shared<abstract::Shape>(ret_shape);
 }
 

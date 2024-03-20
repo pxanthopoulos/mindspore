@@ -83,6 +83,7 @@ function(add_ops_impl_target)
       \"${OPIMPL_OPS_BATCH}\" \"${OPIMPL_OPS_ITERATE}\" ${OPIMPL_IMPL_DIR}
       ${OPIMPL_OUT_DIR}/dynamic
       ${ASCEND_AUTOGEN_PATH}
+    COMMAND chmod -R 700 ${OPIMPL_OUT_DIR}/dynamic/*
 
     COMMAND rm -rf ${OPIMPL_OUT_DIR}/.impl_timestamp
     COMMAND touch ${OPIMPL_OUT_DIR}/.impl_timestamp
@@ -161,10 +162,12 @@ function(add_bin_compile_target)
       )
     endif()
     add_custom_target(${BINCMP_TARGET}_${op_file}_${op_index} ALL
-                      COMMAND export HI_PYTHON=${ASCEND_PYTHON_EXECUTABLE} &&
+                      COMMAND export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python" &&
+                      export HI_PYTHON=${ASCEND_PYTHON_EXECUTABLE} &&
                       bash ${bin_script} ${BINCMP_OUT_DIR}/src/${op_type}.py ${BINCMP_OUT_DIR}/bin/${op_file} ${BINCMP_OPC_PATH} &&
                       echo $(MAKE) WORKING_DIRECTORY ${BINCMP_OUT_DIR}
     )
+    add_dependencies(${BINCMP_TARGET}_${op_file}_copy ${BINCMP_TARGET})
     add_dependencies(${BINCMP_TARGET}_${op_file}_${op_index} ${BINCMP_TARGET} ${BINCMP_TARGET}_${op_file}_copy)
     add_dependencies(${BINCMP_TARGET}_gen_ops_config ${BINCMP_TARGET}_${op_file}_${op_index})
 

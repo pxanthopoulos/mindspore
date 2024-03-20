@@ -54,4 +54,14 @@ def test_all_finite(mode):
     ]
     net = Net()
     output = net(inputs)
-    assert output == False
+    assert output.asnumpy() == True
+
+    inputs1 = [
+        Tensor(np.full(shape1, 100, np.float32)),
+        Tensor(np.full(shape1, 0, np.float32)),
+        Tensor(np.full(shape1, 40000, np.float32)),
+        Tensor(np.full(shape2, 10, np.float32)),
+        Tensor(np.full(shape2, 256, np.float32)),
+    ]
+    output1 = net(inputs1)
+    assert output1.asnumpy() == False

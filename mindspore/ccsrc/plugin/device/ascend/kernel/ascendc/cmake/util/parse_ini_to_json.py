@@ -26,7 +26,7 @@ ATTR_TYPE_LIST = ["int", "float", "bool", "str", "listInt", "listFloat", "listBo
                   "type", "listType", "tensor", "listTensor"]
 ATTR_PARAMTYPE_LIST = ["optional", "required"]
 BOOL_FLAG_KEY = ["dynamicFormat", "dynamicShapeSupport", "dynamicRankSupport", "precision_reduce", "heavyOp",
-                 "needCheckSupport"]
+                 "needCheckSupport", "enableVectorCore"]
 BOOL_LIST = ["true", "false"]
 DTYPE_LIST = ["float16", "float", "float32", "int8", "int16", "int32", "uint8", "uint16", "uint32", "bool",
               "int64", "uint64", "qint8", "qint16", "qint32", "quint8", "quint16", "double", "complex64",
