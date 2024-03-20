@@ -34,7 +34,7 @@ class KernelAllFinite {
     tail_block_ub_tail = tail_block_ub_tail_in;
     tail_block_ub_loop = tail_block_ub_loop_in;
     buffer_num = buffer_num_in;
-    dtype_in = in_dtype_in;
+    in_dtype = in_dtype_in;
   }
 
   __aicore__ inline void Process() {
@@ -234,21 +234,23 @@ class KernelAllFinite {
 };
 
 extern "C" __global__ __aicore__ void all_finite(GM_ADDR x, GM_ADDR z, GM_ADDR workspace, GM_ADDR tiling) {
-  GET_tiling_DATA(local_tiling, tiling);
+  GET_TILING_DATA(local_tiling, tiling);
 
-  if (local_tiling.in_dtype == 0) {
+  if (local_tiling->in_dtype == 0) {
     KernelAllFinite<uint32_t> op;
     op.setArgs(x, z);
     op.setTiling(local_tiling->avg_block_count, local_tiling->avg_block_ub_num, local_tiling->avg_block_ub_tail,
                  local_tiling->avg_block_ub_loop, local_tiling->tail_block_count, local_tiling->tail_block_ub_num,
-                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num);
+                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num,
+                 local_tiling->in_dtype);
     op.Process();
   } else if () {
     KernelAllFinite<uint16_t> op;
     op.setArgs(x, z);
     op.setTiling(local_tiling->avg_block_count, local_tiling->avg_block_ub_num, local_tiling->avg_block_ub_tail,
                  local_tiling->avg_block_ub_loop, local_tiling->tail_block_count, local_tiling->tail_block_ub_num,
-                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num);
+                 local_tiling->tail_block_ub_tail, local_tiling->tail_block_ub_loop, local_tiling->buffer_num,
+                 local_tiling->in_dtype);
     op.Process();
   }
 }
