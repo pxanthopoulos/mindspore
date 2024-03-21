@@ -32,11 +32,11 @@ bool AllFiniteAscend::Launch(const std::vector<KernelTensor *> &inputs, const st
   MS_EXCEPTION_IF_NULL(stream_ptr);
 
   aclrtMemsetAsync(outputs[kIndex0]->device_ptr(), outputs[kIndex0]->size(), 0, outputs[kIndex0]->size(), stream_ptr);
+  release_func_ = nullptr;
   for (size_t i = 0; i < inputs.size(); ++i) {
     const bool use_huge_pages = true;
     auto res = GEN_EXECUTOR_CUST(op_type_, use_huge_pages, inputs[i], outputs[kIndex0]);
-    executor_ = std::get<kIndex1>(res);
-    RunOpSync(stream_ptr, workspace);
+    RUN_OP_API_ASYNC(op_type_, nullptr, 0, std::get<kIndex1>(res), stream_ptr, release_func_);
   }
   return true;
 }
