@@ -55,6 +55,7 @@ void DebugActor::ACLDump(uint32_t device_id, const std::vector<KernelGraphPtr> &
     bool is_init = false;
     if ((env_enable_str == dump_enable_str) && !(DumpJsonParser::GetInstance().IsDumpIter(step_count_num))) {
       is_init = true;
+      MS_LOG(WARNING) << "Do not create acl dump dir";
     } else {
       std::string dump_path = DumpJsonParser::GetInstance().path();
       std::string dump_path_step = dump_path + "/" + std::to_string(step_count_num);
@@ -63,10 +64,13 @@ void DebugActor::ACLDump(uint32_t device_id, const std::vector<KernelGraphPtr> &
         MS_LOG(WARNING) << "Fail to create acl dump dir " << real_path.value();
         return;
       }
+      MS_LOG(WARNING) << "create acl dump dir success";
     }
     dump_flag = true;
     auto registered_dumper = datadump::DataDumperRegister::Instance().GetDumperForBackend(device::DeviceType::kAscend);
     if (registered_dumper != nullptr) {
+      MS_LOG(WARNING) << "Initialize and EnableDump";
+      MS_LOG(WARNING) << "Device id" << device_id << "step_count_num" << step_count_num << "is_init" << is_init;
       registered_dumper->Initialize();
       registered_dumper->EnableDump(device_id, step_count_num, is_init);
     }

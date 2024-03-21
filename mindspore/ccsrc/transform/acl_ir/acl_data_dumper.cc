@@ -52,12 +52,15 @@ class AclDataDumper : public DataDumper {
     InitializeAcl();
 
     if (CALL_ASCEND_API2(aclmdlInitDump) != ACL_ERROR_NONE) {
-      MS_LOG(INFO) << "Call aclmdlInitDump failed, acl data dump function will be unusable.";
+      MS_LOG(WARNING) << "Call aclmdlInitDump failed, acl data dump function will be unusable.";
+    } else {
+      MS_LOG(WARNING) << "Call aclmdlInitDump success.";
     }
   }
   void EnableDump(uint32_t device_id, uint32_t step_id, bool is_init) override {
     auto &dump_parser = DumpJsonParser::GetInstance();
     dump_parser.Parse();
+    MS_LOG(WARNING) << "Call EnableDump." << "device_id" << device_id << "step_id" << step_id << "is_init" << is_init;
     if (dump_parser.async_dump_enabled()) {
       auto &acl_json_writer = AclDumpJsonWriter::GetInstance();
       acl_json_writer.Parse();
@@ -68,6 +71,8 @@ class AclDataDumper : public DataDumper {
         MS_LOG(WARNING)
           << "Call aclmdlSetDump failed, acl data dump function will be unusable. Please check whether the config file"
           << json_file_name;
+      } else {
+        MS_LOG(WARNING) << "Call aclmdlSetDump success.";
       }
     }
   }
@@ -75,6 +80,8 @@ class AclDataDumper : public DataDumper {
   void Finalize() override {
     if (CALL_ASCEND_API2(aclmdlFinalizeDump) != ACL_ERROR_NONE) {
       MS_LOG(WARNING) << "Call aclmdlFinalizeDump failed.";
+    } else {
+      MS_LOG(WARNING) << "Call aclmdlFinalizeDump success.";
     }
   }
 };
