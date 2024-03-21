@@ -65,3 +65,61 @@ def test_all_finite(mode):
     ]
     output1 = net(inputs1)
     assert output1.asnumpy() == False
+
+
+
+
+@pytest.mark.level0
+@pytest.mark.platform_arm_ascend_training
+@pytest.mark.platform_arm_ascend910b_training
+@pytest.mark.env_onecard
+@pytest.mark.parametrize('mode', [ms.GRAPH_MODE])
+def test_all_finite_small(mode):
+    """
+    Feature: Add all_finite ops.
+    Description: test all_finite ops.
+    Expectation: Success.
+    """
+    ms.set_context(mode=mode)
+    net = Net()
+
+    in1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    fp16_in = Tensor(in1, ms.float16)
+    output = net(fp16_in)
+    assert output == False
+
+    fp32_in = Tensor(in1, ms.float32)
+    output = net(fp32_in)
+    assert output == False
+
+    in1[5] = np.inf
+
+    fp16_in = Tensor(in1, ms.float16)
+    output = net(fp16_in)
+    assert output == True
+
+    fp32_in = Tensor(in1, ms.float32)
+    output = net(fp32_in)
+    assert output == True
+
+    in2 = [2]
+    
+    fp16_in = Tensor(in2, ms.float16)
+    output = net(fp16_in)
+    assert output == False
+
+    fp32_in = Tensor(in2, ms.float32)
+    output = net(fp32_in)
+    assert output == False
+
+    in2[0] = np.nan
+
+    fp16_in = Tensor(in2, ms.float16)
+    output = net(fp16_in)
+    assert output == True
+
+    fp32_in = Tensor(in2, ms.float32)
+    output = net(fp32_in)
+    assert output == True
+    

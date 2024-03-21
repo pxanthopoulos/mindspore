@@ -22,17 +22,25 @@ class KernelAllFinite {
   }
   __aicore__ inline void setTiling(uint32_t avg_block_count_in, uint32_t avg_block_ub_num_in,
                                    uint32_t avg_block_ub_tail_in, uint32_t avg_block_ub_loop_in,
+                                   uint32_t avg_block_ub_real_in, uint32_t avg_block_ub_pad_in,
                                    uint32_t tail_block_count_in, uint32_t tail_block_ub_num_in,
                                    uint32_t tail_block_ub_tail_in, uint32_t tail_block_ub_loop_in,
+                                   uint32_t tail_block_ub_real_in, uint32_t tail_block_ub_pad_in,
                                    uint32_t buffer_num_in, uint32_t in_dtype_in) {
     avg_block_count = avg_block_count_in;
     avg_block_ub_num = avg_block_ub_num_in;
     avg_block_ub_tail = avg_block_ub_tail_in;
     avg_block_ub_loop = avg_block_ub_loop_in;
+    avg_block_ub_real = avg_block_ub_real_in;
+    avg_block_ub_pad = avg_block_ub_pad_in;
+
     tail_block_count = tail_block_count_in;
     tail_block_ub_num = tail_block_ub_num_in;
     tail_block_ub_tail = tail_block_ub_tail_in;
     tail_block_ub_loop = tail_block_ub_loop_in;
+    tail_block_ub_real = tail_block_ub_real_in;
+    tail_block_ub_pad = tail_block_ub_pad_in;
+
     buffer_num = buffer_num_in;
     in_dtype = in_dtype_in;
   }
@@ -45,23 +53,28 @@ class KernelAllFinite {
     uint32_t ub_count = avg_block_ub_num;
     uint32_t ub_loop = avg_block_ub_loop;
     uint32_t ub_tail = avg_block_ub_tail;
+    uint32_t ub_real = avg_block_ub_real;
+    uint32_t ub_pad = avg_block_ub_pad;
 
     if (core_idx == core_num - 1) {
       ub_count = tail_block_ub_num;
       ub_loop = tail_block_ub_loop;
       ub_tail = tail_block_ub_tail;
+      ub_real = tail_block_ub_real;
+      ub_pad = tail_block_ub_pad;
     }
 
     Init(ub_count);
     if (in_dtype == 1) {
-      ProcessHalf(ub_count, ub_tail, ub_loop);
+      ProcessHalf(ub_count, ub_tail, ub_loop, ub_real, ub_pad);
     } else if (in_dtype == 0) {
-      ProcessFp32(ub_count, ub_tail, ub_loop);
+      ProcessFp32(ub_count, ub_tail, ub_loop, ub_real, ub_pad);
     }
   }
 
  private:
-  __aicore__ inline void ProcessHalf(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop) {
+  __aicore__ inline void ProcessHalf(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop, uint32_t ub_real,
+                                     uint32_t ub_pad) {
     AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
     AscendC::LocalTensor<uint16_t> tmp_t = tmpQue.AllocTensor<uint16_t>();
     AscendC::LocalTensor<uint16_t> mask_t = maskQue.AllocTensor<uint16_t>();
@@ -77,8 +90,8 @@ class KernelAllFinite {
     if (ub_tail == 0 || loop >= ub_loop) {
       return;
     }
-    CopyIn(loop, ub_count, ub_tail);
-    ComputeHalf(ub_count, tmp_t, mask_t, comp_t, &loop);
+    CopyInPad(loop, ub_count, ub_tail, ub_real, ub_pad);
+    ComputeHalf(ub_tail, tmp_t, mask_t, comp_t, &loop);
 
     /* free tmp local tensor */
     tmpQue.FreeTensor(tmp_t);
@@ -86,7 +99,8 @@ class KernelAllFinite {
     compQue.FreeTensor(comp_t);
   }
 
-  __aicore__ inline void ProcessFp32(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop) {
+  __aicore__ inline void ProcessFp32(uint32_t ub_count, uint32_t ub_tail, uint32_t ub_loop, uint32_t ub_real,
+                                     uint32_t ub_pad) {
     AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
     AscendC::LocalTensor<uint32_t> tmp_t = tmpQue.AllocTensor<uint32_t>();
     AscendC::LocalTensor<uint32_t> mask_t = maskQue.AllocTensor<uint32_t>();
@@ -102,8 +116,8 @@ class KernelAllFinite {
     if (ub_tail == 0 || loop >= ub_loop) {
       return;
     }
-    CopyIn(loop, ub_count, ub_tail);
-    ComputeFp32(ub_count, tmp_t, mask_t, comp_t, &loop);
+    CopyInPad(loop, ub_count, ub_tail, ub_real, ub_pad);
+    ComputeFp32(ub_tail, tmp_t, mask_t, comp_t, &loop);
 
     /* free tmp local tensor */
     tmpQue.FreeTensor(tmp_t);
@@ -123,6 +137,17 @@ class KernelAllFinite {
   __aicore__ inline void CopyIn(uint32_t idx, uint32_t stride, uint32_t count) {
     AscendC::LocalTensor<IN_TYPE> x = xQue.AllocTensor<IN_TYPE>();
     DataCopy(x, xGm[idx * stride], count);
+    xQue.EnQue(x);
+  }
+
+  __aicore__ inline void CopyInPad(uint32_t idx, uint32_t stride, uint32_t count, uint32_t real, uint32_t pad) {
+    uint32_t real_cp_size = real * sizeof(IN_TYPE);
+    AscendC::DataCopyExtParams copy_params{1, real_cp_size, 0, 0, 0};
+    uint8_t pad_ele_count = pad;
+    AscendC::DataCopyPadExtParams<IN_TYPE> pad_param{true, 0, pad_ele_count, 0};
+    AscendC::LocalTensor<IN_TYPE> x = xQue.AllocTensor<IN_TYPE>();
+    Duplicate(x, (IN_TYPE)0x0, count);
+    DataCopyPad(x, xGm[idx * stride], copy_params, pad_param);
     xQue.EnQue(x);
   }
 
@@ -163,18 +188,20 @@ class KernelAllFinite {
   }
   __aicore__ inline void CombRes(uint32_t count, uint32_t *loop, AscendC::LocalTensor<uint8_t> comp_t,
                                  AscendC::LocalTensor<uint16_t> ui16_t) {
-    AscendC::LocalTensor<half> half_comp_t = ui16_t.ReinterpretCast<half>();
-    Cast(half_comp_t, comp_t, AscendC::RoundMode::CAST_NONE, count / 8);
-    pipe_barrier(PIPE_ALL);
-
     const int mask = 128;
     int total_count = count / 8;
-    int repeat = total_count / mask;
+    int repeat = (total_count + 127)/ mask;
+
+    AscendC::LocalTensor<half> half_comp_t = ui16_t.ReinterpretCast<half>();
+    Duplicate(half_comp_t, (half)0x0, count);
+    Cast(half_comp_t, comp_t, AscendC::RoundMode::CAST_NONE, total_count);
+    pipe_barrier(PIPE_ALL);
+
 
     while (repeat > 1) {
       WholeReduceSum(half_comp_t, half_comp_t, mask, repeat, 1, 1, 8);
-      repeat = repeat / 128;
-      total_count = total_count / 128;
+      repeat = (repeat + 127)/ mask;
+      total_count = (total_count + 127)/ mask;
       pipe_barrier(PIPE_ALL);
     }
 
@@ -226,11 +253,15 @@ class KernelAllFinite {
   uint32_t avg_block_ub_num{0};
   uint32_t avg_block_ub_tail{0};
   uint32_t avg_block_ub_loop{0};
+  uint32_t avg_block_ub_real{0};
+  uint32_t avg_block_ub_pad{0};
 
   uint32_t tail_block_count{0};
   uint32_t tail_block_ub_num{0};
   uint32_t tail_block_ub_tail{0};
   uint32_t tail_block_ub_loop{0};
+  uint32_t tail_block_ub_real{0};
+  uint32_t tail_block_ub_pad{0};
 };
 
 extern "C" __global__ __aicore__ void all_finite(GM_ADDR x, GM_ADDR z, GM_ADDR workspace, GM_ADDR tiling) {
@@ -238,26 +269,32 @@ extern "C" __global__ __aicore__ void all_finite(GM_ADDR x, GM_ADDR z, GM_ADDR w
   uint32_t avg_block_ub_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 1));
   uint32_t avg_block_ub_tail = (uint32_t)(*((__gm__ uint32_t *)tiling + 2));
   uint32_t avg_block_ub_loop = (uint32_t)(*((__gm__ uint32_t *)tiling + 3));
+  uint32_t avg_block_ub_real = (uint32_t)(*((__gm__ uint32_t *)tiling + 4));
+  uint32_t avg_block_ub_pad = (uint32_t)(*((__gm__ uint32_t *)tiling + 5));
 
-  uint32_t tail_block_count = (uint32_t)(*((__gm__ uint32_t *)tiling + 4));
-  uint32_t tail_block_ub_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 5));
-  uint32_t tail_block_ub_tail = (uint32_t)(*((__gm__ uint32_t *)tiling + 6));
-  uint32_t tail_block_ub_loop = (uint32_t)(*((__gm__ uint32_t *)tiling + 7));
+  uint32_t tail_block_count = (uint32_t)(*((__gm__ uint32_t *)tiling + 6));
+  uint32_t tail_block_ub_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 7));
+  uint32_t tail_block_ub_tail = (uint32_t)(*((__gm__ uint32_t *)tiling + 8));
+  uint32_t tail_block_ub_loop = (uint32_t)(*((__gm__ uint32_t *)tiling + 9));
+  uint32_t tail_block_ub_real = (uint32_t)(*((__gm__ uint32_t *)tiling + 10));
+  uint32_t tail_block_ub_pad = (uint32_t)(*((__gm__ uint32_t *)tiling + 11));
 
-  uint32_t buffer_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 8));
-  uint32_t in_dtype = (uint32_t)(*((__gm__ uint32_t *)tiling + 10));
+  uint32_t buffer_num = (uint32_t)(*((__gm__ uint32_t *)tiling + 12));
+  uint32_t in_dtype = (uint32_t)(*((__gm__ uint32_t *)tiling + 13));
 
   if (in_dtype == 0) {
     KernelAllFinite<uint32_t> op;
     op.setArgs(x, z);
-    op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, tail_block_count,
-                 tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop, buffer_num, in_dtype);
+    op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, avg_block_ub_real,
+                 avg_block_ub_pad, tail_block_count, tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop,
+                 tail_block_ub_real, tail_block_ub_pad, buffer_num, in_dtype);
     op.Process();
   } else if (in_dtype == 1) {
     KernelAllFinite<uint16_t> op;
     op.setArgs(x, z);
-    op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, tail_block_count,
-                 tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop, buffer_num, in_dtype);
+    op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, avg_block_ub_real,
+                 avg_block_ub_pad, tail_block_count, tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop,
+                 tail_block_ub_real, tail_block_ub_pad, buffer_num, in_dtype);
     op.Process();
   }
 }
