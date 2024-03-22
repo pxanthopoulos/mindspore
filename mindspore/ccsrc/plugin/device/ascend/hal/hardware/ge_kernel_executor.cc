@@ -992,7 +992,8 @@ bool GeKernelExecutor::LaunchKernel(const CNodePtr &kernel, const vector<KernelT
   // for PyNative Sync Run mode
   auto ret = PySyncRuning(stream);
   if (!ret) {
-    MS_LOG(EXCEPTION) << "Sync run failed, detail: " << CALL_ASCEND_API2(aclGetRecentErrMsg);
+    MS_LOG(EXCEPTION) << "Sync run failed, detail: " << CALL_ASCEND_API2(aclGetRecentErrMsg)
+                      << trace::DumpSourceLines(kernel);
   }
   PROFILER_END(start_time, runtime::ProfilerModule::kKernel, runtime::ProfilerEvent::kKernelLaunch,
                kernel->fullname_with_scope(), false);
