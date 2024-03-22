@@ -67,6 +67,17 @@ def test_all_finite(mode):
     assert output1.asnumpy() == False
 
 
+    inputs1 = [
+        Tensor(np.full(shape1, 100, np.float32), ms.bfloat16),
+        Tensor(np.full(shape1, 0, np.float32), ms.bfloat16),
+        Tensor(np.full(shape1, 40000, np.float32), ms.bfloat16),
+        Tensor(np.full(shape2, 10, np.float32), ms.bfloat16),
+        Tensor(np.full(shape2, np.nan, np.float32), ms.bfloat16),
+    ]
+    output1 = net(inputs1)
+    assert output1.asnumpy() == True
+
+
 
 
 @pytest.mark.level0
@@ -93,6 +104,10 @@ def test_all_finite_small(mode):
     output = net(fp32_in)
     assert output == False
 
+    bf16_in = Tensor(in1, ms.bfloat16)
+    output = net(bf16_in)
+    assert output == False
+
     in1[5] = np.inf
 
     fp16_in = Tensor(in1, ms.float16)
@@ -101,6 +116,10 @@ def test_all_finite_small(mode):
 
     fp32_in = Tensor(in1, ms.float32)
     output = net(fp32_in)
+    assert output == True
+
+    bf16_in = Tensor(in1, ms.bfloat16)
+    output = net(bf16_in)
     assert output == True
 
     in2 = [2]
@@ -113,6 +132,10 @@ def test_all_finite_small(mode):
     output = net(fp32_in)
     assert output == False
 
+    bf16_in = Tensor(in2, ms.bfloat16)
+    output = net(bf16_in)
+    assert output == False
+
     in2[0] = np.nan
 
     fp16_in = Tensor(in2, ms.float16)
@@ -122,4 +145,7 @@ def test_all_finite_small(mode):
     fp32_in = Tensor(in2, ms.float32)
     output = net(fp32_in)
     assert output == True
-    
+
+    bf16_in = Tensor(in2, ms.bfloat16)
+    output = net(bf16_in)
+    assert output == True
