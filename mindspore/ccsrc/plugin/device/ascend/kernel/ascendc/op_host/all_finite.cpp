@@ -143,14 +143,14 @@ class AllFinite : public OpDef {
   explicit AllFinite(const char *name) : OpDef(name) {
     this->Input("gradient")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT})
-      .Format({ge::FORMAT_ND, ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+      .DataType({ge::DT_FLOAT16, ge::DT_FLOAT, ge::DT_BF16})
+      .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
     this->Output("is_finite")
       .ParamType(REQUIRED)
-      .DataType({ge::DT_BOOL, ge::DT_BOOL})
-      .Format({ge::FORMAT_ND, ge::FORMAT_ND})
-      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND});
+      .DataType({ge::DT_BOOL, ge::DT_BOOL, ge::DT_BOOL})
+      .Format({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND})
+      .UnknownShapeFormat({ge::FORMAT_ND, ge::FORMAT_ND, ge::FORMAT_ND});
 
     this->SetInferShape(ge::InferShape);
 

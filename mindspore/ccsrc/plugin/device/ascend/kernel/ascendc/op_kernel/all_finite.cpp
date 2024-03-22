@@ -44,6 +44,10 @@ class KernelAllFinite {
     buffer_num = buffer_num_in;
     in_dtype = in_dtype_in;
   }
+  __aicore__ inline void setShift(uint32_t left, uint32_t right) {
+    left_shift = left;
+    right_shift = right;
+  }
 
   __aicore__ inline void Process() {
     if (core_idx >= core_num) {
@@ -65,7 +69,7 @@ class KernelAllFinite {
     }
 
     Init(ub_count);
-    if (in_dtype == 1) {
+    if (in_dtype == 1 || in_dtype == 27) {
       ProcessHalf(ub_count, ub_tail, ub_loop, ub_real, ub_pad);
     } else if (in_dtype == 0) {
       ProcessFp32(ub_count, ub_tail, ub_loop, ub_real, ub_pad);
@@ -78,7 +82,11 @@ class KernelAllFinite {
     AscendC::LocalTensor<uint8_t> comp_t = compQue.AllocTensor<uint8_t>();
     AscendC::LocalTensor<uint16_t> tmp_t = tmpQue.AllocTensor<uint16_t>();
     AscendC::LocalTensor<uint16_t> mask_t = maskQue.AllocTensor<uint16_t>();
-    Duplicate(mask_t, (uint16_t)0x001F, ub_count);  //  0 00000 00000 11111
+    if (right_shift == 11) {                          //  half
+      Duplicate(mask_t, (uint16_t)0x001F, ub_count);  //  0 00000 00000 11111
+    } else {                                          //  8 bf16
+      Duplicate(mask_t, (uint16_t)0x00FF, ub_count);  //  0 000 0000 1111 1111
+    }
 
     uint32_t loop = 0;
     for (; loop < ub_loop - 1; loop++) {
@@ -155,9 +163,9 @@ class KernelAllFinite {
                                         AscendC::LocalTensor<uint16_t> mask_t, AscendC::LocalTensor<uint8_t> comp_t) {
     AscendC::LocalTensor<uint16_t> in_t = xQue.DeQue<uint16_t>();
 
-    AscendC::ShiftLeft<uint16_t>(shift_t, in_t, 1, count);
+    AscendC::ShiftLeft<uint16_t>(shift_t, in_t, left_shift, count);
     pipe_barrier(PIPE_ALL);
-    AscendC::ShiftRight<uint16_t>(shift_t, shift_t, 11, count);
+    AscendC::ShiftRight<uint16_t>(shift_t, shift_t, right_shift, count);
     pipe_barrier(PIPE_ALL);
 
     xQue.FreeTensor(in_t);
@@ -190,18 +198,17 @@ class KernelAllFinite {
                                  AscendC::LocalTensor<uint16_t> ui16_t) {
     const int mask = 128;
     int total_count = count / 8;
-    int repeat = (total_count + 127)/ mask;
+    int repeat = (total_count + 127) / mask;
 
     AscendC::LocalTensor<half> half_comp_t = ui16_t.ReinterpretCast<half>();
     Duplicate(half_comp_t, (half)0x0, count);
     Cast(half_comp_t, comp_t, AscendC::RoundMode::CAST_NONE, total_count);
     pipe_barrier(PIPE_ALL);
 
-
     while (repeat > 1) {
       WholeReduceSum(half_comp_t, half_comp_t, mask, repeat, 1, 1, 8);
-      repeat = (repeat + 127)/ mask;
-      total_count = (total_count + 127)/ mask;
+      repeat = (repeat + 127) / mask;
+      total_count = (total_count + 127) / mask;
       pipe_barrier(PIPE_ALL);
     }
 
@@ -242,6 +249,9 @@ class KernelAllFinite {
 
   __gm__ IN_TYPE *__restrict__ gm_x{nullptr};
   __gm__ half *__restrict__ gm_y{nullptr};
+
+  uint32_t left_shift{0};
+  uint32_t right_shift{0};
 
   uint32_t core_idx{0};
   uint32_t core_num{0};
@@ -292,6 +302,15 @@ extern "C" __global__ __aicore__ void all_finite(GM_ADDR x, GM_ADDR z, GM_ADDR w
   } else if (in_dtype == 1) {
     KernelAllFinite<uint16_t> op;
     op.setArgs(x, z);
+    op.setShift(1, 11);
+    op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, avg_block_ub_real,
+                 avg_block_ub_pad, tail_block_count, tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop,
+                 tail_block_ub_real, tail_block_ub_pad, buffer_num, in_dtype);
+    op.Process();
+  } else if (in_dtype == 27) {
+    KernelAllFinite<uint16_t> op;  // bf16
+    op.setArgs(x, z);
+    op.setShift(1, 8);
     op.setTiling(avg_block_count, avg_block_ub_num, avg_block_ub_tail, avg_block_ub_loop, avg_block_ub_real,
                  avg_block_ub_pad, tail_block_count, tail_block_ub_num, tail_block_ub_tail, tail_block_ub_loop,
                  tail_block_ub_real, tail_block_ub_pad, buffer_num, in_dtype);
