@@ -19,6 +19,7 @@
 
 #include "op_proto/inc/npu_loss_scale_ops.h"
 #include "transform/graph_ir/op_declare/op_declare_macro.h"
+#include "transform/graph_ir/custom_op_proto/all_finite.h"
 #include "utils/hash_map.h"
 
 DECLARE_OP_ADAPTER(NPUGetFloatStatus)
@@ -35,4 +36,7 @@ DECLARE_OP_USE_OUTPUT(NPUGetFloatStatusV2)
 
 DECLARE_OP_ADAPTER(NPUClearFloatStatusV2)
 DECLARE_OP_USE_OUTPUT(NPUClearFloatStatusV2)
+
+DECLARE_OP_ADAPTER(AllFinite)
+DECLARE_OP_USE_OUTPUT(AllFinite)
 #endif  // MINDSPORE_CCSRC_TRANSFORM_GRAPH_IR_OP_DECLARE_NPU_LOSS_SCALE_OPS_DECLARE_H_

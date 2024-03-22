@@ -98,9 +98,7 @@ def _all_finite(inputs, check_overflow_mode):
             status_finite = get_status.equal(Tensor(0, mstype.int32)).all()
             return status_finite
 
-    outputs = _hypermap(_partial(_overflow), inputs)
-    flag_sum = ops.addn(outputs).reshape(())
-    status_finite = ops.less(flag_sum, 1)
+    status_finite = ops.AllFinite()(inputs)
     return status_finite
 
 
