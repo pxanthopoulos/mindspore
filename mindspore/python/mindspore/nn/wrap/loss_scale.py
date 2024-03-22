@@ -485,7 +485,8 @@ class TrainOneStepWithLossScaleCell(TrainOneStepCell):
         overflow = P.AllFinite()(compute_output)
 
         if self.is_distributed:
-            overflow = self.allreduce(overflow)
+            overflow = P.Cast()(overflow, mstype.int8)
+            overflow = P.Cast()(self.allreduce(overflow), mstype.bool_)
         return overflow
 
     def _get_gpu_overflow_status(self, compute_output):
